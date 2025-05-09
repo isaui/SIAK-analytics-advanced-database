@@ -1,0 +1,116 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+ENV/
+
+# Go
+*.o
+*.a
+*.so
+_obj
+_test
+*.[568vq]
+[568vq].out
+*.cgo1.go
+*.cgo2.c
+_cgo_defun.c
+_cgo_gotypes.go
+_cgo_export.*
+_testmain.go
+*.exe
+*.test
+*.prof
+/vendor/
+/Godeps/
+
+# Node/Vue.js
+node_modules/
+npm-debug.log
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.DS_Store
+dist/
+dist-ssr
+coverage
+*.local
+.env.local
+.env.*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# PostgreSQL
+*.dump
+*.sql.gz
+
+# Docker volumes
+db-data/
+
+# MinIO
+minio-data/
+
+# Airflow
+airflow/logs/
+airflow/*.pid
+airflow/airflow-webserver.pid
+airflow/airflow-scheduler.pid
+airflow/webserver_config.py
+airflow.cfg
+airflow.db
+airflow-webserver.pid
+
+# Environment variables
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Exclude all .tfvars files, which might contain sensitive data
+*.tfvars
+
+# Exclude environment-specific files
+.env*.local
