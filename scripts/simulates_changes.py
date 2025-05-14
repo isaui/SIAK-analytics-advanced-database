@@ -22,17 +22,9 @@ from data_sources.siak_pool import get_db_connection
 
 # Import generators for inserts
 from generator.student_faker import generate_student
-from generator.course_faker import generate_course
-from generator.registration_faker import generate_registration
-from generator.grade_faker import generate_grade
-from generator.academic_record_faker import generate_academic_record
 from generator.lecturer_faker import generate_lecturer
 from generator.room_faker import generate_room
 from generator.semester_faker import generate_semester
-from generator.class_schedule_faker import generate_class_schedule
-from generator.semester_fees_faker import generate_semester_fees
-from generator.faculty_faker import generate_faculty
-from generator.program_faker import generate_program
 
 # Import updaters
 from generator.update.student_updater import update_random_student
@@ -94,35 +86,6 @@ def insert_random_student():
         logger.error(f"Error inserting student: {str(e)}")
         return False
 
-def insert_random_course():
-    """Wrapper for course generation"""
-    from data_sources.siak_pool import execute_query
-    try:
-        # Get a random program for the course
-        program_result = execute_query("SELECT id FROM programs ORDER BY RANDOM() LIMIT 1")
-        if not program_result:
-            logger.warning("No programs found for course creation")
-            return False
-            
-        program_id = program_result[0]['id']
-        
-        # Generate one course
-        course = generate_course([{"id": program_id}], n=1)[0]
-        
-        # Insert the course
-        execute_query(
-            """INSERT INTO courses 
-               (course_code, course_name, credits, program_id) 
-               VALUES (%s, %s, %s, %s)""",
-            params=(course['course_code'], course['course_name'], 
-                    course['credits'], course['program_id']),
-            fetch_none=True
-        )
-        logger.info(f"Inserted new course: {course['course_name']} (Code: {course['course_code']})")
-        return True
-    except Exception as e:
-        logger.error(f"Error inserting course: {str(e)}")
-        return False
 
 def insert_random_registration():
     """Wrapper for registration generation"""
@@ -453,7 +416,6 @@ def simulate_changes(num_changes=10):
         
         # Insert operations
         (insert_random_student, 8),          # Insert new students
-        (insert_random_course, 3),           # Insert new courses (least frequent)
         (insert_random_registration, 8),     # Insert new registrations
         (insert_random_grade, 10),           # Insert new grades
         (insert_random_lecturer, 3),         # Insert new lecturers
@@ -496,8 +458,8 @@ def main():
     parser = argparse.ArgumentParser(description='Simulate database changes for CDC testing')
     parser.add_argument('--changes', type=int, default=20, 
                        help='Number of changes to make (default: 20)')
-    parser.add_argument('--no-commit', action='store_true', 
-                       help='Do not commit changes to database (default: commit)')
+    parser.add_argument('--commit', action='store_true', 
+                       help='commit changes to database (default: ga commit)')
     args = parser.parse_args()
     
     # Load environment variables
@@ -512,7 +474,7 @@ def main():
             changes = simulate_changes(args.changes)
             
             # Commit or rollback based on argument
-            if not args.no_commit:
+            if args.commit:
                 conn.commit()
                 logger.info(f"Committed {changes} changes to database")
             else:
