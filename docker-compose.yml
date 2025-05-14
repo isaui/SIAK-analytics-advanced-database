@@ -9,13 +9,16 @@ services:
       POSTGRES_USER: ${DB_USER:-siak}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-siak_password}
       POSTGRES_DB: ${DB_NAME:-siak}
+      # Pass through DB config
+      DB_HOST: ${DB_HOST:-localhost}
+      DB_PORT: ${DB_PORT:-5432}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./data_sources/init_siak:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U siak"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-siak}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -28,9 +31,13 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      # Pass through all MinIO config
+      MINIO_HOST: ${MINIO_HOST:-localhost}
+      MINIO_PORT: ${MINIO_PORT:-9000}
+      MINIO_SECURE: ${MINIO_SECURE:-False}
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
+      - "${MINIO_PORT:-9000}:9000"
       - "9001:9001"
     volumes:
       - minio_data:/data
@@ -45,9 +52,16 @@ services:
     environment:
       MINIO_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_SECURE: ${MINIO_SECURE:-False}
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc config host add myminio http://minio:9000 $${MINIO_USER} $${MINIO_PASSWORD};
+      # Use secure or insecure connection based on environment variable
+      if [ "$${MINIO_SECURE}" = "True" ]; then
+        PROTOCOL='https'
+      else
+        PROTOCOL='http'
+      fi;
+      /usr/bin/mc config host add myminio $${PROTOCOL}://minio:${MINIO_PORT:-9000} $${MINIO_USER} $${MINIO_PASSWORD};
       /usr/bin/mc mb myminio/raw;
       /usr/bin/mc mb myminio/processed;
       exit 0;

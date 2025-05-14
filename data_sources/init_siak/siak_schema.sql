@@ -1,11 +1,11 @@
 -- Faculties Table
 CREATE TABLE faculties (
     id SERIAL PRIMARY KEY,
-    faculty_code VARCHAR(5) UNIQUE NOT NULL,
+    faculty_code VARCHAR(10) UNIQUE NOT NULL,
     faculty_name VARCHAR(100) NOT NULL
 );
 
--- Programs Table
+-- Programs Tableerr
 CREATE TABLE programs (
     id SERIAL PRIMARY KEY,
     program_code VARCHAR(10) UNIQUE NOT NULL,

@@ -20,7 +20,7 @@ faculty_options = [
     ("FPsi", "Fakultas Psikologi"),
     ("FIA", "Fakultas Ilmu Administrasi"),
     ("FKUI", "Fakultas Kedokteran Hewan"),
-    ("Vokasi", "Sekolah Vokasi"),
+    ("Vokasi", "Sekolah Vokasi")
 ]
 
 def generate_faculty(n=1):

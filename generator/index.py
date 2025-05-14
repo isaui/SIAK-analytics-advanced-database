@@ -196,11 +196,11 @@ def save_to_postgres(data, db_config=None):
             batch = data["students"][i:i+batch_size]
             args = [(
                 s["npm"], s["username"], s["name"], s["email"], 
-                s["birth_date"], s["address"], s["phone"], s["program_id"], s["enrollment_year"]
+                s["enrollment_date"], s["program_id"], s.get("is_active", True)
             ) for s in batch]
             execute_batch("""
-                INSERT INTO students (npm, username, name, email, birth_date, address, phone, program_id, enrollment_year) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO students (npm, username, name, email, enrollment_date, program_id, is_active) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, args, page_size=batch_size)
             print(f"  Inserted {min(i+batch_size, len(data['students']))} of {len(data['students'])} students")
         
