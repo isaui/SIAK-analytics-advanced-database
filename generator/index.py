@@ -31,6 +31,7 @@ from registration_faker import generate_registration
 from grade_faker import generate_grade
 from semester_fees_faker import generate_semester_fees
 from academic_record_faker import generate_academic_record
+from attendance_faker import generate_attendance
 
 
 def generate_all_data(counts=None):
@@ -317,6 +318,72 @@ def save_to_postgres(data, db_config=None):
     except (psycopg2.Error, Exception) as e:
         print(f"Error inserting into PostgreSQL: {e}")
         # Connection pool handles rollbacks and connection cleanup
+
+
+def save_attendance_to_csv(data, output_file="data/attendance.csv"):
+    """
+    Save attendance data to a CSV file, simulating an external attendance system
+    
+    Args:
+        data: Dictionary containing all generated data
+        output_file: Path to the CSV file to save attendance data
+    """
+    import os
+    import csv
+    from datetime import datetime
+    
+    # Create directory for output file if it doesn't exist
+    os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
+    
+    # Generate attendance records
+    print("Generating attendance records...")
+    attendance_records = generate_attendance(
+        data["students"], 
+        data["class_schedules"], 
+        data["semesters"]
+    )
+    
+    # Add semester code to each record for better reference
+    semester_map = {s["id"]: s["semester_code"] for s in data["semesters"]}
+    course_map = {c["id"]: c["course_code"] for c in data["courses"]}
+    student_map = {s["id"]: s["npm"] for s in data["students"]}
+    
+    enhanced_records = []
+    for record in attendance_records:
+        # Get class schedule to find semester
+        class_schedule = next((cs for cs in data["class_schedules"] if cs["id"] == record["class_schedule_id"]), None)
+        if not class_schedule:
+            continue
+            
+        semester_id = class_schedule["semester_id"]
+        course_id = record["course_id"]
+        student_id = record["student_id"]
+        
+        # Add human-readable identifiers
+        enhanced_record = record.copy()
+        enhanced_record["semester_code"] = semester_map.get(semester_id, "unknown")
+        enhanced_record["course_code"] = course_map.get(course_id, "unknown")
+        enhanced_record["npm"] = student_map.get(student_id, "unknown")
+        
+        enhanced_records.append(enhanced_record)
+    
+    # Save all records to a single CSV file
+    with open(output_file, 'w', newline='') as csvfile:
+        fieldnames = [
+            "student_id", "npm", "course_id", "course_code", 
+            "class_schedule_id", "semester_code", "meeting_date", 
+            "check_in_time", "status"
+        ]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        
+        for record in enhanced_records:
+            writer.writerow(record)
+    
+    print(f"Total attendance records saved: {len(enhanced_records):,} to {output_file}")
+    
+    # Return the records in case needed elsewhere
+    return attendance_records
 
 
 def save_to_minio(data, minio_config):

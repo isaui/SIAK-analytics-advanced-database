@@ -25,7 +25,7 @@ from generator.index import (
     save_to_json,
     save_to_csv,
     save_to_postgres,
-    save_to_minio
+    save_attendance_to_csv
 )
 
 
@@ -42,9 +42,15 @@ def main():
     
     parser.add_argument(
         "--output", 
-        choices=["json", "csv", "postgres", "minio", "all"], 
+        choices=["json", "csv", "postgres", "all"], 
         default="postgres",
         help="Output format for generated data"
+    )
+    
+    parser.add_argument(
+        "--generate-attendance",
+        action="store_true",
+        help="Generate attendance data and save to CSV (uses same seed data as PostgreSQL)"
     )
     
     parser.add_argument(
@@ -116,20 +122,21 @@ def main():
         
     if args.output == "postgres" or args.output == "all":
         # Save data using the connection pool
+        print("\nSaving data to PostgreSQL database...")
         save_to_postgres(data)
+    
+    # Generate attendance data if requested
+    if args.generate_attendance or args.output == "all":
+        # Get attendance CSV path from environment or use default
+        attendance_csv_path = os.getenv("ATTENDANCE_CSV_PATH", os.path.join(args.output_dir, "attendance.csv"))
         
-    if args.output == "minio" or args.output == "all":
-        # Get MinIO configuration from environment variables
-        minio_config = {
-            "host": os.getenv("MINIO_HOST", "localhost"),
-            "port": int(os.getenv("MINIO_PORT", "9000")),
-            "access_key": os.getenv("MINIO_ROOT_USER", "minioadmin"),
-            "secret_key": os.getenv("MINIO_ROOT_PASSWORD", "minioadmin"),
-            "secure": os.getenv("MINIO_SECURE", "False").lower() == "true"
-        }
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(os.path.abspath(attendance_csv_path)), exist_ok=True)
         
-        print(f"\nSaving data to MinIO at {minio_config['host']}:{minio_config['port']}...")
-        save_to_minio(data, minio_config)
+        print(f"\nGenerating attendance data and saving to {attendance_csv_path}...")
+        
+        # Use the same seed data that was used for PostgreSQL to ensure consistency
+        attendance_records = save_attendance_to_csv(data, attendance_csv_path)
     
     print("\nData generation and seeding complete!")
 
