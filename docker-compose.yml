@@ -72,6 +72,7 @@ services:
       /usr/bin/mc config host add myminio $${PROTOCOL}://minio:${MINIO_PORT:-9000} $${MINIO_USER} $${MINIO_PASSWORD};
       /usr/bin/mc mb myminio/raw;
       /usr/bin/mc mb myminio/processed;
+      /usr/bin/mc mb myminio/checkpoints;
       exit 0;
       "
     networks:
