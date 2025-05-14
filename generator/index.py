@@ -159,23 +159,6 @@ def save_to_postgres(data, db_config=None):
         
         # For better performance with large datasets, we'll use batch inserts
         batch_size = 1000
-        
-        # Use a single connection for the entire operation
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Clear existing data (optional)
-            print("Clearing existing data...")
-            tables = [
-                "academic_records", "grades", "semester_fees", "registrations", 
-                "class_schedules", "rooms", "lecturers", "courses", "students", 
-                "programs", "semesters", "faculties"
-            ]
-            
-            for table in tables:
-                cursor.execute(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE")
-            conn.commit()
-        
         # Insert faculties
         print("Inserting faculties...")
         args = [(f["faculty_code"], f["faculty_name"]) for f in data["faculties"]]

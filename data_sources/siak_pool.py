@@ -125,11 +125,13 @@ def get_db_connection():
             SiakConnectionPool().release_connection(conn)
 
 
-def execute_query(query: str, params: Optional[Tuple] = None, fetch_all: bool = True) -> List[Dict]:
+def execute_query(query: str, params: Optional[Tuple] = None, fetch_all: bool = True, fetch_none=False) -> List[Dict]:
     """Execute a query and return the results as a list of dictionaries"""
     with get_db_connection() as conn:
         with conn.cursor(cursor_factory=extras.RealDictCursor) as cursor:
             cursor.execute(query, params)
+            if fetch_none:
+                return
             if fetch_all:
                 return cursor.fetchall()
             else:

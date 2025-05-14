@@ -12,6 +12,14 @@ services:
       # Pass through DB config
       DB_HOST: ${DB_HOST:-localhost}
       DB_PORT: ${DB_PORT:-5432}
+      # CDC settings
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command: [
+      "postgres", 
+      "-c", "wal_level=logical",
+      "-c", "max_replication_slots=5",
+      "-c", "max_wal_senders=10"
+    ]
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:

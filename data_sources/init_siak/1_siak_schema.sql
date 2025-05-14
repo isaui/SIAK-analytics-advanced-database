@@ -5,7 +5,7 @@ CREATE TABLE faculties (
     faculty_name VARCHAR(100) NOT NULL
 );
 
--- Programs Tableerr
+-- Programs Table
 CREATE TABLE programs (
     id SERIAL PRIMARY KEY,
     program_code VARCHAR(10) UNIQUE NOT NULL,

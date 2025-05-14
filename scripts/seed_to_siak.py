@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Script to generate data and seed it into the SIAK database.
+Script to generate initial data and seed it into the SIAK database.
 This script uses the functions from generator/index.py for cleaner code organization.
 """
 
@@ -145,7 +145,7 @@ def main():
         print(f"\nGenerating attendance data and saving to {attendance_csv_path}...")
         
         # Use the same seed data that was used for PostgreSQL to ensure consistency
-        attendance_records = save_attendance_to_csv(data, attendance_csv_path, max_rows=attendance_max_rows)
+        save_attendance_to_csv(data, attendance_csv_path, max_rows=attendance_max_rows)
     
     print("\nData generation and seeding complete!")
 
