@@ -3,7 +3,7 @@ import random
 
 fake = Faker('id_ID')
 
-def calculate_gpa(grades, courses):
+def calculate_gpa(grades, courses, registrations=None):
     """Helper function to calculate GPA based on grades and courses"""
     if not grades:
         return 0.0, 0
@@ -14,10 +14,11 @@ def calculate_gpa(grades, courses):
     for grade in grades:
         # Get the course for this grade
         course_id = None
-        for registration in registrations:
-            if registration["id"] == grade["registration_id"]:
-                course_id = registration["course_id"]
-                break
+        if registrations:  # Check if registrations is provided
+            for registration in registrations:
+                if registration["id"] == grade["registration_id"]:
+                    course_id = registration["course_id"]
+                    break
         
         if course_id is None:
             continue
@@ -124,7 +125,7 @@ def generate_academic_record(students, semesters, registrations, grades, courses
             semester_grades = [g for g in grades if g["registration_id"] in semester_reg_ids]
             
             # Calculate semester GPA
-            semester_gpa, semester_credits = calculate_gpa(semester_grades, courses)
+            semester_gpa, semester_credits = calculate_gpa(semester_grades, courses, registrations)
             
             # Calculate credits passed (only count grades better than F/E)
             credits_passed = 0

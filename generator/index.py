@@ -4,13 +4,10 @@
 import json
 import os
 import psycopg2
-from psycopg2 import extras
 
 # Import the connection pool
 from data_sources.siak_pool import (
-    SiakConnectionPool, 
     execute_batch,
-    execute_values,
     get_db_connection
 )
 from minio import Minio
@@ -19,19 +16,19 @@ import pandas as pd
 from io import BytesIO
 
 # Import all faker modules
-from faculty_faker import generate_faculty
-from program_faker import generate_program
-from lecturer_faker import generate_lecturer
-from student_faker import generate_student
-from room_faker import generate_room
-from course_faker import generate_course
-from semester_faker import generate_semester
-from class_schedule_faker import generate_class_schedule
-from registration_faker import generate_registration
-from grade_faker import generate_grade
-from semester_fees_faker import generate_semester_fees
-from academic_record_faker import generate_academic_record
-from attendance_faker import generate_attendance
+from generator.faculty_faker import generate_faculty
+from generator.program_faker import generate_program
+from generator.lecturer_faker import generate_lecturer
+from generator.student_faker import generate_student
+from generator.room_faker import generate_room
+from generator.course_faker import generate_course
+from generator.semester_faker import generate_semester
+from generator.class_schedule_faker import generate_class_schedule
+from generator.registration_faker import generate_registration
+from generator.grade_faker import generate_grade
+from generator.semester_fees_faker import generate_semester_fees
+from generator.academic_record_faker import generate_academic_record
+from generator.attendance_faker import generate_attendance
 
 
 def generate_all_data(counts=None):
@@ -92,7 +89,7 @@ def generate_all_data(counts=None):
     grades = generate_grade(registrations)
     
     print("Generating semester fees...")
-    semester_fees = generate_semester_fees(students, semesters)
+    semester_fees = generate_semester_fees(students, semesters, programs)
     
     print("Generating academic records...")
     academic_records = generate_academic_record(
@@ -159,8 +156,6 @@ def save_to_postgres(data, db_config=None):
                   If provided, will override the default pool configuration
     """
     try:
-        # Initialize connection pool with custom config if provided
-        pool = SiakConnectionPool()
         
         # For better performance with large datasets, we'll use batch inserts
         batch_size = 1000
@@ -320,7 +315,7 @@ def save_to_postgres(data, db_config=None):
         # Connection pool handles rollbacks and connection cleanup
 
 
-def save_attendance_to_csv(data, output_file="data/attendance.csv"):
+def save_attendance_to_csv(data, output_file="data/attendance.csv", max_rows=None):
     """
     Save attendance data to a CSV file, simulating an external attendance system
     
@@ -367,6 +362,14 @@ def save_attendance_to_csv(data, output_file="data/attendance.csv"):
         
         enhanced_records.append(enhanced_record)
     
+    # Limit the number of records if max_rows is specified
+    if max_rows is not None and max_rows > 0 and len(enhanced_records) > max_rows:
+        print(f"Limiting attendance records to {max_rows} rows (from {len(enhanced_records)} total)")
+        # Randomly sample records to ensure diverse coverage
+        import random
+        random.seed(42)  # For reproducibility
+        enhanced_records = random.sample(enhanced_records, max_rows)
+    
     # Save all records to a single CSV file
     with open(output_file, 'w', newline='') as csvfile:
         fieldnames = [
@@ -379,11 +382,13 @@ def save_attendance_to_csv(data, output_file="data/attendance.csv"):
         
         for record in enhanced_records:
             writer.writerow(record)
+            
+    print(f"Saved {len(enhanced_records)} attendance records to {output_file}")
     
     print(f"Total attendance records saved: {len(enhanced_records):,} to {output_file}")
     
     # Return the records in case needed elsewhere
-    return attendance_records
+    return enhanced_records
 
 
 def save_to_minio(data, minio_config):

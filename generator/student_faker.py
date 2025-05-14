@@ -35,7 +35,7 @@ def generate_student(programs, n=100, start_year=2018, end_year=2023):
         # Map faculty code from program
         faculty_code = program["program_code"][:2]  # First 2 chars of program code is faculty
         
-        # Faculty numeric codes in UI (approximate)
+        # Faculty numeric codes in UI (approximate) - ALL NUMERIC
         faculty_code_map = {
             "FH": "1",
             "FK": "2",
@@ -47,26 +47,49 @@ def generate_student(programs, n=100, start_year=2018, end_year=2023):
             "FT": "8",
             "FASILKOM": "9",
             "FEB": "0", # Often 0 or 10
-            "FIB": "A",
-            "FISIP": "B",
-            "FPsi": "C",
-            "FIA": "D",
-            "FKUI": "E",
-            "Vokasi": "V",
+            "FIB": "1",  # Changed from "A" to numeric
+            "FISIP": "2", # Changed from "B" to numeric 
+            "FPsi": "3",  # Changed from "C" to numeric
+            "FIA": "4",   # Changed from "D" to numeric
+            "FKUI": "5",  # Changed from "E" to numeric
+            "Vokasi": "6", # Changed from "V" to numeric
         }
         
         numeric_faculty_code = faculty_code_map.get(faculty_code, "0")
         if len(numeric_faculty_code) > 1:  # Take only the first digit/letter if more than one
             numeric_faculty_code = numeric_faculty_code[0]
         
-        # Program code (typically 2 digits)
-        program_digits = program["program_code"][2:4] if len(program["program_code"]) > 2 else "00"
+        # Program code (typically 2 digits) - ensure it's numeric
+        program_code = program["program_code"][2:4] if len(program["program_code"]) > 2 else "00"
+        # Replace any non-numeric characters with digits
+        program_digits = ""
+        for char in program_code:
+            if char.isdigit():
+                program_digits += char
+            else:
+                # Replace letters with their position in alphabet (A=1, B=2, etc)
+                if char.isalpha():
+                    program_digits += str(ord(char.upper()) - ord('A') + 1)
+                else:
+                    program_digits += "0"  # Default for special characters
+        
+        # Ensure it's exactly 2 digits
+        if len(program_digits) < 2:
+            program_digits = program_digits.zfill(2)  # Pad with leading zeros
+        elif len(program_digits) > 2:
+            program_digits = program_digits[:2]  # Take first two digits
         
         # Generate serial number - ensure uniqueness within each program+year
         serial = f"{(i % 10000):04d}"  # 4-digit serial number
         
+        # Generate completely numeric NPM
         npm = f"{year_code}{numeric_faculty_code}{program_digits}{serial}"
-        npm = npm[:10]  # Ensure it's not more than 10 chars
+        
+        # Replace any remaining non-numeric characters (just to be safe)
+        npm = ''.join(c if c.isdigit() else '0' for c in npm)
+        
+        # Ensure it's exactly 10 digits
+        npm = npm.zfill(10)[:10]  # Pad with leading zeros if needed and limit to 10 chars
         
         # Generate name and gender
         gender = random.choice(['male', 'female'])

@@ -130,13 +130,22 @@ def main():
         # Get attendance CSV path from environment or use default
         attendance_csv_path = os.getenv("ATTENDANCE_CSV_PATH", os.path.join(args.output_dir, "attendance.csv"))
         
+        # Get maximum attendance rows from environment variable
+        attendance_max_rows = os.getenv("ATTENDANCE_MAX_ROWS")
+        if attendance_max_rows:
+            try:
+                attendance_max_rows = int(attendance_max_rows)
+            except ValueError:
+                print(f"Warning: ATTENDANCE_MAX_ROWS is not a valid integer: {attendance_max_rows}")
+                attendance_max_rows = None
+        
         # Ensure directory exists
         os.makedirs(os.path.dirname(os.path.abspath(attendance_csv_path)), exist_ok=True)
         
         print(f"\nGenerating attendance data and saving to {attendance_csv_path}...")
         
         # Use the same seed data that was used for PostgreSQL to ensure consistency
-        attendance_records = save_attendance_to_csv(data, attendance_csv_path)
+        attendance_records = save_attendance_to_csv(data, attendance_csv_path, max_rows=attendance_max_rows)
     
     print("\nData generation and seeding complete!")
 

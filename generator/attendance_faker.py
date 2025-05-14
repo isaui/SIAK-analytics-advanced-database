@@ -33,7 +33,8 @@ def generate_attendance(students, class_schedules, semesters, count=None):
         count = len(class_schedules) * 14
     
     # Make a copy of active semesters for current attendance
-    active_semesters = [s for s in semesters if s["end_date"] >= datetime.now().date()]
+    current_date = datetime.now().date()
+    active_semesters = [s for s in semesters if datetime.strptime(s["end_date"], '%Y-%m-%d').date() >= current_date]
     if not active_semesters:
         active_semesters = [semesters[-1]]  # Take the most recent semester
     
@@ -63,8 +64,8 @@ def generate_attendance(students, class_schedules, semesters, count=None):
             continue
         
         # Calculate a meeting date within the semester
-        semester_start = semester["start_date"]
-        semester_end = semester["end_date"]
+        semester_start = datetime.strptime(semester["start_date"], '%Y-%m-%d').date()
+        semester_end = datetime.strptime(semester["end_date"], '%Y-%m-%d').date()
         meeting_date = fake.date_between_dates(semester_start, semester_end)
         
         # Align meeting day with class_schedule day_of_week

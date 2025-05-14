@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 fake = Faker('id_ID')
 
-def generate_semester_fees(students, semesters):
+def generate_semester_fees(students, semesters, programs=None):
     """
     Generate semester fees entries for students
     
@@ -145,6 +145,7 @@ def generate_semester_fees(students, semesters):
         # Find program code for fee calculation
         program_id = student["program_id"]
         program_code = "DEFAULT"  # Default
+        faculty_code = "DEFAULT"  # Default faculty code
         
         # Find all semesters where the student is enrolled
         for semester in semesters:
@@ -157,15 +158,15 @@ def generate_semester_fees(students, semesters):
                 faculty_code = "DEFAULT"  # Default faculty code
                 
                 # Find program information for this student
-                for p in programs:
-                    if p["id"] == program_id:
-                        if "program_code" in p and len(p["program_code"]) >= 2:
-                            faculty_code = p["program_code"][:2]
-                        break
+                if programs:  # Only search if programs are provided
+                    for p in programs:
+                        if p["id"] == program_id:
+                            if "program_code" in p and len(p["program_code"]) >= 2:
+                                faculty_code = p["program_code"][:2]
+                            break
                 
                 # Get fee structure for this faculty
                 fee_structure = program_base_fees.get(faculty_code, program_base_fees["DEFAULT"])
-                
                 # Assign each student a UKT level (1-8) that will be consistent across semesters
                 # Use student ID as seed for consistency
                 student_seed = student["id"]
