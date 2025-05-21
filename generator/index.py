@@ -163,14 +163,14 @@ def save_to_postgres(data, db_config=None):
         print("Inserting faculties...")
         args = [(f["faculty_code"], f["faculty_name"]) for f in data["faculties"]]
         execute_batch(
-            "INSERT INTO faculties (faculty_code, faculty_name) VALUES (%s, %s)", 
+            "INSERT INTO faculties (faculty_code, faculty_name) VALUES (%s, %s) ON CONFLICT (faculty_code) DO UPDATE SET faculty_name = EXCLUDED.faculty_name",
             args)
         
         # Insert programs
         print("Inserting programs...")
         args = [(p["program_code"], p["program_name"], p["faculty_id"]) for p in data["programs"]]
         execute_batch(
-            "INSERT INTO programs (program_code, program_name, faculty_id) VALUES (%s, %s, %s)", 
+            "INSERT INTO programs (program_code, program_name, faculty_id) VALUES (%s, %s, %s) ON CONFLICT (program_code) DO UPDATE SET program_name = EXCLUDED.program_name, faculty_id = EXCLUDED.faculty_id",
             args)
         
         # Insert students
@@ -183,7 +183,7 @@ def save_to_postgres(data, db_config=None):
             ) for s in batch]
             execute_batch("""
                 INSERT INTO students (npm, username, name, email, enrollment_date, program_id, is_active) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING
             """, args, page_size=batch_size)
             print(f"  Inserted {min(i+batch_size, len(data['students']))} of {len(data['students'])} students")
         
@@ -201,9 +201,9 @@ def save_to_postgres(data, db_config=None):
         
         # Insert rooms
         print("Inserting rooms...")
-        args = [(r["room_number"], r["building"], r["capacity"]) for r in data["rooms"]]
+        args = [(r["id"], r["room_number"], r["building"], r["capacity"]) for r in data["rooms"]]
         execute_batch(
-            "INSERT INTO rooms (room_number, building, capacity) VALUES (%s, %s, %s)", 
+            "INSERT INTO rooms (id, room_number, building, capacity) VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO UPDATE SET room_number = EXCLUDED.room_number, building = EXCLUDED.building, capacity = EXCLUDED.capacity",
             args)
         
         # Insert courses
@@ -214,7 +214,7 @@ def save_to_postgres(data, db_config=None):
                 c["course_code"], c["course_name"], c["credits"], c["program_id"]
             ) for c in batch]
             execute_batch(
-                "INSERT INTO courses (course_code, course_name, credits, program_id) VALUES (%s, %s, %s, %s)", 
+                "INSERT INTO courses (course_code, course_name, credits, program_id) VALUES (%s, %s, %s, %s) ON CONFLICT (course_code) DO UPDATE SET course_name = EXCLUDED.course_name, credits = EXCLUDED.credits, program_id = EXCLUDED.program_id",
                 args, page_size=batch_size)
             print(f"  Inserted {min(i+batch_size, len(data['courses']))} of {len(data['courses'])} courses")
         
@@ -222,7 +222,7 @@ def save_to_postgres(data, db_config=None):
         print("Inserting semesters...")
         args = [(s["semester_code"], s["start_date"], s["end_date"]) for s in data["semesters"]]
         execute_batch(
-            "INSERT INTO semesters (semester_code, start_date, end_date) VALUES (%s, %s, %s)", 
+            "INSERT INTO semesters (semester_code, start_date, end_date) VALUES (%s, %s, %s) ON CONFLICT (semester_code) DO UPDATE SET start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date",
             args)
         
         # Insert class schedules
@@ -248,7 +248,7 @@ def save_to_postgres(data, db_config=None):
                 r["student_id"], r["course_id"], r["semester_id"], r["registration_date"]
             ) for r in batch]
             execute_batch(
-                "INSERT INTO registrations (student_id, course_id, semester_id, registration_date) VALUES (%s, %s, %s, %s)", 
+                "INSERT INTO registrations (student_id, course_id, semester_id, registration_date) VALUES (%s, %s, %s, %s) ON CONFLICT (student_id, course_id, semester_id) DO UPDATE SET registration_date = EXCLUDED.registration_date",
                 args, page_size=batch_size)
             print(f"  Inserted {min(i+batch_size, len(data['registrations']))} of {len(data['registrations'])} registrations")
         
@@ -272,7 +272,7 @@ def save_to_postgres(data, db_config=None):
                 sf["student_id"], sf["semester_id"], sf["fee_amount"], sf["payment_date"]
             ) for sf in batch]
             execute_batch(
-                "INSERT INTO semester_fees (student_id, semester_id, fee_amount, payment_date) VALUES (%s, %s, %s, %s)", 
+                "INSERT INTO semester_fees (student_id, semester_id, fee_amount, payment_date) VALUES (%s, %s, %s, %s) ON CONFLICT (student_id, semester_id) DO UPDATE SET fee_amount = EXCLUDED.fee_amount, payment_date = EXCLUDED.payment_date",
                 args, page_size=batch_size)
             print(f"  Inserted {min(i+batch_size, len(data['semester_fees']))} of {len(data['semester_fees'])} semester fees")
         
@@ -287,7 +287,10 @@ def save_to_postgres(data, db_config=None):
             execute_batch("""
                 INSERT INTO academic_records 
                 (student_id, semester_id, semester_gpa, cumulative_gpa, semester_credits, credits_passed, total_credits) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (student_id, semester_id)
+                DO UPDATE SET semester_gpa = EXCLUDED.semester_gpa, cumulative_gpa = EXCLUDED.cumulative_gpa,
+                semester_credits = EXCLUDED.semester_credits, credits_passed = EXCLUDED.credits_passed,
+                total_credits = EXCLUDED.total_credits
             """, args, page_size=batch_size)
             print(f"  Inserted {min(i+batch_size, len(data['academic_records']))} of {len(data['academic_records'])} academic records")
         
