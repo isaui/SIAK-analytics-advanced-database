@@ -5,7 +5,7 @@ from airflow.providers.minio.transfers.s3_to_local import S3ToLocalOperator
 from airflow.providers.minio.transfers.local_to_s3 import LocalToS3Operator
 from datetime import datetime
 
-def extract_data():
+def read_data():
     # Implementasi ekstraksi data dari MinIO ke sistem lokal
     pass
 
@@ -26,9 +26,9 @@ with DAG(
     catchup=False,
 ) as dag:
 
-    extract = PythonOperator(
-        task_id='extract_data',
-        python_callable=extract_data,
+    read = PythonOperator(
+        task_id='read_data',
+        python_callable=read_data,
     )
 
     transform = PythonOperator(
@@ -41,4 +41,4 @@ with DAG(
         python_callable=load_data,
     )
 
-    extract >> transform >> load
+    read >> transform >> load
