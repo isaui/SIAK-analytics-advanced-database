@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-siak}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-siak_password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-isacitrasigma}
       POSTGRES_DB: ${DB_NAME:-siak}
       # Pass through DB config
       DB_HOST: ${DB_HOST:-localhost}
@@ -38,7 +38,7 @@ services:
     container_name: siak_minio
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-isacitrasigma}
       # Pass through all MinIO config
       MINIO_HOST: ${MINIO_HOST:-localhost}
       MINIO_PORT: ${MINIO_PORT:-9000}
@@ -77,6 +77,27 @@ services:
       "
     networks:
       - siak_network
+  airflow-webserver:
+    image: apache/airflow:2.7.1
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://siak:isacitrasigma@postgres:5432/siak
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth"
+      AIRFLOW__WEBSERVER__RBAC: "True"
+      AIRFLOW__WEBSERVER__WORKERS: 2
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    ports:
+      - "8080:8080"
+    command: webserver
+    restart: unless-stopped
+    networks:
+    - siak_network
 
 volumes:
   postgres_data:
