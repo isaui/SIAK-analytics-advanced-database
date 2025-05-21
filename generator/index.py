@@ -32,15 +32,6 @@ from generator.attendance_faker import generate_attendance
 
 
 def generate_all_data(counts=None):
-    """
-    Generate all data for the university ETL pipeline
-    
-    Args:
-        counts: Dictionary with counts for each entity
-        
-    Returns:
-        Dictionary containing all generated data
-    """
     if counts is None:
         counts = {
             "faculty": 15,         # 15 faculties (UI has around 14 faculties)
@@ -56,46 +47,34 @@ def generate_all_data(counts=None):
     
     print("Generating faculties...")
     faculties = generate_faculty(counts["faculty"])
-    
     print("Generating programs...")
     programs = generate_program(faculties, counts["program"])
-    
     print("Generating lecturers...")
     lecturers = generate_lecturer(faculties, counts["lecturer"])
-    
     print("Generating students...")
     students = generate_student(programs, counts["student"])
-    
     print("Generating rooms...")
     rooms = generate_room(counts["room"])
-    
     print("Generating courses...")
     courses = generate_course(programs, counts["course"])
-    
     print("Generating semesters...")
     semesters = generate_semester(counts["semester"])
-    
     print("Generating class schedules...")
     class_schedules = generate_class_schedule(
         courses, lecturers, rooms, semesters, counts["class_schedule"]
     )
-    
     print("Generating registrations...")
     registrations = generate_registration(
         students, courses, semesters, counts["registration"]
     )
-    
     print("Generating grades...")
     grades = generate_grade(registrations)
-    
     print("Generating semester fees...")
     semester_fees = generate_semester_fees(students, semesters, programs)
-    
     print("Generating academic records...")
     academic_records = generate_academic_record(
         students, semesters, registrations, grades, courses
     )
-    
     return {
         "faculties": faculties,
         "programs": programs,

@@ -123,3 +123,78 @@ CREATE TABLE fact_program_enrollment (
     FOREIGN KEY (faculty_id) REFERENCES dim_faculty(faculty_id),
     FOREIGN KEY (semester_id) REFERENCES dim_semester(semester_id)
 );
+
+-- Lecturer Dimension
+CREATE TABLE dim_lecturer (
+    lecturer_id INTEGER PRIMARY KEY,
+    lecturer_code VARCHAR(10) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100),
+    department VARCHAR(100),
+    faculty_id INTEGER,
+    FOREIGN KEY (faculty_id) REFERENCES dim_faculty(faculty_id)
+);
+
+-- Class/Schedule Dimension
+CREATE TABLE dim_class (
+    class_id INTEGER PRIMARY KEY,
+    class_code VARCHAR(20) NOT NULL,
+    course_id INTEGER NOT NULL,
+    lecturer_id INTEGER NOT NULL,
+    semester_id INTEGER NOT NULL,
+    room VARCHAR(20),
+    day_of_week VARCHAR(10),
+    start_time TIME,
+    end_time TIME,
+    FOREIGN KEY (course_id) REFERENCES dim_course(course_id),
+    FOREIGN KEY (lecturer_id) REFERENCES dim_lecturer(lecturer_id),
+    FOREIGN KEY (semester_id) REFERENCES dim_semester(semester_id)
+);
+
+-- Attendance Status Dimension (for SCD Type 2 if status definitions change)
+CREATE TABLE dim_attendance_status (
+    status_id SERIAL PRIMARY KEY,
+    status_code VARCHAR(10) NOT NULL,
+    status_description VARCHAR(50) NOT NULL,
+    is_present BOOLEAN NOT NULL,
+    is_current BOOLEAN NOT NULL DEFAULT TRUE,
+    effective_date DATE NOT NULL,
+    expiration_date DATE
+);
+
+-- Attendance Fact
+CREATE TABLE fact_attendance (
+    attendance_id SERIAL PRIMARY KEY,
+    student_id INTEGER NOT NULL,
+    class_id INTEGER NOT NULL,
+    course_id INTEGER NOT NULL,
+    lecturer_id INTEGER NOT NULL,
+    semester_id INTEGER NOT NULL,
+    attendance_date DATE NOT NULL,
+    status_id INTEGER NOT NULL,
+    is_makeup BOOLEAN DEFAULT FALSE,
+    check_in_time TIME,
+    check_out_time TIME,
+    duration_minutes INTEGER,
+    FOREIGN KEY (student_id) REFERENCES dim_student(student_id),
+    FOREIGN KEY (class_id) REFERENCES dim_class(class_id),
+    FOREIGN KEY (course_id) REFERENCES dim_course(course_id),
+    FOREIGN KEY (lecturer_id) REFERENCES dim_lecturer(lecturer_id),
+    FOREIGN KEY (semester_id) REFERENCES dim_semester(semester_id),
+    FOREIGN KEY (status_id) REFERENCES dim_attendance_status(status_id)
+);
+
+-- Attendance Summary Fact (for analytics)
+CREATE TABLE fact_attendance_summary (
+    summary_id SERIAL PRIMARY KEY,
+    student_id INTEGER NOT NULL,
+    course_id INTEGER NOT NULL,
+    semester_id INTEGER NOT NULL,
+    classes_total INTEGER NOT NULL,
+    classes_attended INTEGER NOT NULL,
+    attendance_percentage DECIMAL(5,2) NOT NULL,
+    last_updated TIMESTAMP NOT NULL,
+    FOREIGN KEY (student_id) REFERENCES dim_student(student_id),
+    FOREIGN KEY (course_id) REFERENCES dim_course(course_id),
+    FOREIGN KEY (semester_id) REFERENCES dim_semester(semester_id)
+);
