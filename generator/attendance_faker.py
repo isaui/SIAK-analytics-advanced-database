@@ -23,36 +23,32 @@ def generate_attendance(students, class_schedules, semesters, count=None):
         students: List of student records
         class_schedules: List of class schedule records
         semesters: List of semester records
-        count: Number of attendance records to generate (default: automatic based on class schedule)
+        count: Maximum number of attendance records to generate
+              (default: automatic based on class schedule)
         
     Returns:
-        List of attendance records
+        List of attendance records (limited to count if specified)
     """
-    # If count is None, we'll generate an average of 14 meetings per class_schedule (one semester)
+    # If count is None, we'll generate an average of 14 meetings per class_schedule
     if count is None:
         count = len(class_schedules) * 14
     
+    print(f"Generating up to {count} attendance records...")
+        
     # Make a copy of active semesters for current attendance
     current_date = datetime.now().date()
     active_semesters = [s for s in semesters if datetime.strptime(s["end_date"], '%Y-%m-%d').date() >= current_date]
     if not active_semesters:
         active_semesters = [semesters[-1]]  # Take the most recent semester
     
-    # Make list of registered students by course and semester
-    eligible_students = {}  # {(course_id, semester_id): [student_ids]}
-    for semester in semesters:
-        for class_schedule in class_schedules:
-            if class_schedule["semester_id"] == semester["id"]:
-                # Get students registered for this course in this semester
-                course_students = [s["id"] for s in students if random.random() < 0.8]  # Simulate ~80% of students registered
-                eligible_students[(class_schedule["course_id"], semester["id"])] = course_students
+    # Create a more efficient lookup for students
+    student_ids = [s["id"] for s in students]
     
     attendance_records = []
-    
-    # Generate clean attendance records
     records_count = 0
     
-    for i in range(count):
+    # We'll generate records one at a time until we reach the count
+    while records_count < count:
         # Pick a random class schedule
         class_schedule = random.choice(class_schedules)
         course_id = class_schedule["course_id"]
@@ -78,18 +74,12 @@ def generate_attendance(students, class_schedules, semesters, count=None):
         # Get meeting time from class schedule
         meeting_time = str(class_schedule["start_time"])
         
-        # Get students for this course and semester
-        students_in_course = eligible_students.get((course_id, semester_id), [])
-        if not students_in_course:
-            # If no specific students, get random ones
-            students_in_course = random.sample([s["id"] for s in students], min(30, len(students)))
+        # Instead of processing all students, just pick one random student
+        # This is much more memory efficient than nested loops
+        student_id = random.choice(student_ids)
         
-        # Generate attendance records for students
-        for student_id in students_in_course:
-            # Simulate some absences (20% chance of being absent)
-            if random.random() < 0.2:
-                continue
-                
+        # 80% chance of being present (simulating attendance rate)
+        if random.random() < 0.8:
             # Normal record with slight variation in check-in time
             base_time = datetime.strptime(meeting_time, "%H:%M:%S")
             # Students usually arrive within 10 minutes before to 5 minutes after class start
@@ -103,10 +93,14 @@ def generate_attendance(students, class_schedules, semesters, count=None):
                 "class_schedule_id": class_schedule["id"],
                 "meeting_date": meeting_date,
                 "check_in_time": check_in_time,
-                "status": "present"
             }
             
             attendance_records.append(attendance_record)
             records_count += 1
+            
+            # Give periodic status updates
+            if records_count % 1000 == 0:
+                print(f"Generated {records_count} attendance records so far...")
     
+    print(f"Completed generating {len(attendance_records)} attendance records")
     return attendance_records

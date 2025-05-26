@@ -453,39 +453,35 @@ def simulate_changes(num_changes=10):
     logger.info(f"Completed {changes_made} changes in {attempts} attempts")
     return changes_made
 
-def main():
-    """Main function"""
-    parser = argparse.ArgumentParser(description='Simulate database changes for CDC testing')
-    parser.add_argument('--changes', type=int, default=20, 
-                       help='Number of changes to make (default: 20)')
-    parser.add_argument('--commit', action='store_true', 
-                       help='commit changes to database (default: ga commit)')
-    args = parser.parse_args()
+def main(changes=20, commit=True):
+    """Main function
     
+    Args:
+        changes: Number of changes to make (default: 20)
+        commit: Whether to commit changes to database (default: True)
+    """
     # Load environment variables
     load_dotenv()
     
-    logger.info(f"Starting simulation of {args.changes} data changes...")
+    logger.info(f"Starting simulation of {changes} data changes...")
     
     # Get database connection for transaction management
     with get_db_connection() as conn:
         try:
             # Run simulation
-            changes = simulate_changes(args.changes)
+            changes_made = simulate_changes(changes)
             
-            # Commit or rollback based on argument
-            if args.commit:
+            # Commit or rollback based on parameter
+            if commit:
                 conn.commit()
-                logger.info(f"Committed {changes} changes to database")
+                logger.info(f"Committed {changes_made} changes to database")
             else:
                 conn.rollback()
-                logger.info(f"Rolled back {changes} changes (dry run)")
-                logger.info("Remove --no-commit flag to commit changes")
+                logger.info(f"Rolled back {changes_made} changes (dry run)")
         except Exception as e:
             conn.rollback()
             logger.error(f"Error in simulation: {str(e)}")
     
     logger.info("Simulation completed")
+    return changes_made
 
-if __name__ == "__main__":
-    main()

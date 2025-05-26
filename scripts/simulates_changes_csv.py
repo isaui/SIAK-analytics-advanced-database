@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
-Generate updated attendance CSV based on current database state.
-This script fetches data from PostgreSQL and creates a new attendance.csv
-file that reflects the latest state of the database.
+Generate changes to attendance CSV based on current database state.
+This script fetches random data from PostgreSQL and creates a new attendance.csv
+file with the specified number of changes.
 """
 
 import os
@@ -10,214 +10,211 @@ import sys
 import csv
 import random
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from dotenv import load_dotenv
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the database connection pool
-from data_sources.siak_pool import get_db_connection, execute_query
+from data_sources.siak_pool import execute_query
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('update_attendance_csv')
 
-def fetch_data_for_attendance():
+def fetch_data_for_attendance(num_students=20):
     """
     Fetch necessary data from PostgreSQL to generate attendance records
-    """
-    logger.info("Fetching data from PostgreSQL for attendance CSV generation...")
+    Only select a random subset of students
     
-    # Get database connection
-    conn = get_db_connection()
+    Args:
+        num_students: Number of random students to fetch
+    """
+    logger.info(f"Fetching data for {num_students} random students from PostgreSQL...")
     
     try:
-        # Fetch active students
-        logger.info("Fetching active students...")
-        students_query = """
-            SELECT id, npm, name, program_id 
+        # Fetch random active students
+        logger.info(f"Fetching {num_students} random active students...")
+        students_query = f"""
+            SELECT id, npm, name 
             FROM students 
             WHERE is_active = TRUE 
-            ORDER BY id
+            ORDER BY RANDOM() 
+            LIMIT {num_students}
         """
         students = execute_query(students_query)
-        logger.info(f"Found {len(students)} active students")
+        logger.info(f"Selected {len(students)} random students")
         
-        # Fetch current class schedules with course and semester info
-        logger.info("Fetching class schedules...")
-        class_schedules_query = """
-            SELECT cs.id, cs.course_id, cs.semester_id, cs.day_of_week, cs.start_time,
-                   c.course_code, s.semester_code
-            FROM class_schedules cs
-            JOIN courses c ON cs.course_id = c.id
-            JOIN semesters s ON cs.semester_id = s.id
-            ORDER BY cs.semester_id DESC, cs.id
-            LIMIT 500  -- Limit to recent class schedules
-        """
-        class_schedules = execute_query(class_schedules_query)
-        logger.info(f"Found {len(class_schedules)} class schedules")
+        if not students:
+            logger.error("No active students found")
+            return None
+            
+        # Get student IDs for further queries
+        student_ids = [s['id'] for s in students]
+        student_ids_str = ','.join(str(id) for id in student_ids)
         
-        # Fetch registrations to know which students are in which classes
-        logger.info("Fetching registrations...")
-        registrations_query = """
-            SELECT student_id, course_id, semester_id
-            FROM registrations
-            WHERE semester_id = (SELECT MAX(id) FROM semesters)
-            ORDER BY student_id
+        # Fetch registrations for these students with course and class schedule info
+        logger.info("Fetching class info for selected students...")
+        class_info_query = f"""
+            SELECT 
+                r.student_id, 
+                r.course_id,
+                s.npm,
+                c.course_code,
+                cs.id as class_schedule_id,
+                sem.semester_code,
+                cs.day_of_week,
+                cs.start_time
+            FROM registrations r
+            JOIN students s ON r.student_id = s.id
+            JOIN courses c ON r.course_id = c.id
+            JOIN class_schedules cs ON r.course_id = cs.course_id AND r.semester_id = cs.semester_id
+            JOIN semesters sem ON r.semester_id = sem.id
+            WHERE r.student_id IN ({student_ids_str})
+            AND r.semester_id = (SELECT MAX(id) FROM semesters)
         """
-        registrations = execute_query(registrations_query)
-        logger.info(f"Found {len(registrations)} registrations")
+        class_info = execute_query(class_info_query)
+        logger.info(f"Found {len(class_info)} class registrations for selected students")
         
         return {
             "students": students,
-            "class_schedules": class_schedules,
-            "registrations": registrations
+            "class_info": class_info
         }
         
     except Exception as e:
         logger.error(f"Error fetching data: {str(e)}")
         return None
-    finally:
-        conn.close()
 
-def generate_attendance_records(data, max_rows=None):
+def generate_attendance_records(data, num_changes):
     """
-    Generate realistic attendance records
+    Generate attendance records for the selected students and their classes
+    
+    Args:
+        data: Dictionary containing students and class_info data
+        num_changes: Number of attendance records to generate
     """
-    logger.info("Generating attendance records...")
+    logger.info(f"Generating {num_changes} attendance records...")
     
-    students = data["students"]
-    class_schedules = data["class_schedules"]
-    registrations = data["registrations"]
+    class_info = data["class_info"]
     
-    # Create a lookup for registrations
-    reg_lookup = set()
-    for reg in registrations:
-        key = (reg["student_id"], reg["course_id"], reg["semester_id"])
-        reg_lookup.add(key)
+    if not class_info or len(class_info) == 0:
+        logger.error("No class information found for students")
+        return []
+    
+    # Make sure we don't try to generate more records than we have class info
+    max_possible = min(num_changes, len(class_info))
+    
+    # Randomly select class info records to use
+    selected_classes = random.sample(class_info, max_possible)
     
     attendance_records = []
     
-    # Always set status to present
-    statuses = ["present"]
+    # Current date/time for reference
+    now = datetime.now()
     
-    # For each class schedule
-    for cs in class_schedules:
-        class_id = cs["id"]
-        course_id = cs["course_id"]
-        semester_id = cs["semester_id"]
-        course_code = cs["course_code"]
-        semester_code = cs["semester_code"]
-        day_of_week = cs["day_of_week"]
+    # Generate attendance records
+    for i, class_record in enumerate(selected_classes):
+        # Create a meeting date that's recent but random
+        days_ago = random.randint(1, 14)  # Random day in last 2 weeks
+        meeting_date = (now - timedelta(days=days_ago)).date()
         
-        # Get all students registered for this course in this semester
-        class_students = [s for s in students if (s["id"], course_id, semester_id) in reg_lookup]
+        # Parse start time from class schedule
+        try:
+            base_time = datetime.strptime(str(class_record["start_time"]), "%H:%M:%S").time()
+        except ValueError:
+            # If time format is different
+            base_time = datetime.strptime("08:00", "%H:%M").time()
         
-        if not class_students:
-            continue  # Skip if no students in this class
+        # Generate check-in time with small random variation (early or late)
+        minutes_offset = random.randint(-10, 15)  # -10 minutes early to 15 minutes late
+        check_in_dt = datetime.combine(meeting_date, base_time) + timedelta(minutes=minutes_offset)
+        check_in_time = check_in_dt.time().strftime("%H:%M:%S")
         
-        # Generate 14 meetings for the semester
-        now = datetime.now()
-        first_meeting = now - timedelta(days=90)  # Start ~3 months ago
+        # Create attendance record - format identical to attendance_faker.py
+        record = {
+            "student_id": class_record["student_id"],
+            "course_id": class_record["course_id"],
+            "class_schedule_id": class_record["class_schedule_id"],
+            "meeting_date": meeting_date,
+            "check_in_time": check_in_time
+        }
         
-        for meeting_num in range(1, 15):
-            # Each meeting is 7 days apart
-            meeting_date = first_meeting + timedelta(days=7 * meeting_num)
-            
-            # Generate attendance for each student
-            for student in class_students:
-                # Random chance for each student to have a record (some might be missing)
-                if random.random() < 0.95:  # 95% chance to have a record
-                    status = random.choice(statuses)
-                    
-                    # Check-in time varies based on status
-                    if status == "present":
-                        check_in_offset = random.randint(-5, 10)  # -5 to +10 minutes
-                    elif status == "late":
-                        check_in_offset = random.randint(11, 30)  # 11 to 30 minutes late
-                    else:  # absent
-                        check_in_offset = None
-                    
-                    base_time = datetime.strptime("08:00", "%H:%M").time()
-                    check_in_time = None
-                    if check_in_offset is not None:
-                        check_in_dt = datetime.combine(meeting_date.date(), base_time) + timedelta(minutes=check_in_offset)
-                        check_in_time = check_in_dt.time().strftime("%H:%M:%S")
-                    
-                    record = {
-                        "student_id": student["id"],
-                        "npm": student["npm"],
-                        "course_id": course_id, 
-                        "course_code": course_code,
-                        "class_schedule_id": class_id,
-                        "semester_code": semester_code,
-                        "meeting_date": meeting_date.strftime("%Y-%m-%d"),
-                        "check_in_time": check_in_time,
-                        "status": status
-                    }
-                    attendance_records.append(record)
-    
-    # Limit records if max_rows specified
-    if max_rows and len(attendance_records) > max_rows:
-        logger.info(f"Limiting attendance records to {max_rows} (from {len(attendance_records)})")
-        attendance_records = random.sample(attendance_records, max_rows)
+        attendance_records.append(record)
     
     return attendance_records
 
 def save_attendance_to_csv(attendance_records, output_file="data/attendance.csv"):
     """
-    Save attendance records to CSV file
+    Save attendance records to CSV file - always creates a new file
     """
     # Create directory if it doesn't exist
     os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
     
-    # Save records to CSV
+    # Define fieldnames exactly like attendance_faker.py
+    fieldnames = [
+        "student_id", "course_id", "class_schedule_id", 
+        "meeting_date", "check_in_time"
+    ]
+    
+    # Always create a new file (overwrite existing if any)
     with open(output_file, 'w', newline='') as csvfile:
-        fieldnames = [
-            "student_id", "npm", "course_id", "course_code", 
-            "class_schedule_id", "semester_code", "meeting_date", 
-            "check_in_time", "status"
-        ]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         
         for record in attendance_records:
-            writer.writerow(record)
+            # Convert meeting_date to string format if it's a date object
+            csv_record = {}
+            for field in fieldnames:
+                value = record.get(field, '')
+                # Convert date object to string
+                if field == 'meeting_date' and isinstance(value, (datetime, date)):
+                    csv_record[field] = value.strftime('%Y-%m-%d')
+                else:
+                    csv_record[field] = value
+            writer.writerow(csv_record)
     
-    logger.info(f"Saved {len(attendance_records)} attendance records to {output_file}")
+    logger.info(f"Saved {len(attendance_records)} new attendance records to {output_file}")
     return True
 
-def main():
-    """Main function"""
+
+
+def main(changes=20):
+    """
+    Main function
+    
+    Args:
+        changes: Number of changes to make to CSV (default: 20)
+    """
     # Load environment variables
     load_dotenv()
     
-    # Get max rows from environment variable or use default
-    max_rows = int(os.getenv('ATTENDANCE_MAX_ROWS', '5000'))
-    output_file = os.getenv('ATTENDANCE_CSV_PATH', 'data/attendance.csv')
+    # Get CSV path from environment variable or use default
+    csv_path = os.getenv('ATTENDANCE_CSV_PATH', 'data/attendance.csv')
     
-    logger.info(f"Starting attendance CSV update process. Max rows: {max_rows}")
+    logger.info(f"Starting attendance CSV update process. Changes to make: {changes}")
     
-    # Fetch data from PostgreSQL
-    data = fetch_data_for_attendance()
+    # Fetch random students data from PostgreSQL
+    # Number of students = number of changes (each student gets one new attendance record)
+    data = fetch_data_for_attendance(num_students=changes)
     if not data:
         logger.error("Failed to fetch data. Exiting.")
         return False
     
     # Generate attendance records
-    attendance_records = generate_attendance_records(data, max_rows)
+    attendance_records = generate_attendance_records(data, changes)
     
-    # Save to CSV
-    success = save_attendance_to_csv(attendance_records, output_file)
+    if not attendance_records:
+        logger.error("Failed to generate attendance records. Exiting.")
+        return False
+    
+    # Save to CSV (appending to existing if it exists)
+    success = save_attendance_to_csv(attendance_records, csv_path)
     
     if success:
-        logger.info("Attendance CSV update completed successfully!")
+        logger.info(f"Successfully added {len(attendance_records)} new attendance records")
+        return len(attendance_records)
     else:
-        logger.error("Failed to update attendance CSV.")
-    
-    return success
-
-if __name__ == "__main__":
-    main()
+        logger.error("Failed to save attendance CSV.")
+        return False

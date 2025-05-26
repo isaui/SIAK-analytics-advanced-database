@@ -3,11 +3,13 @@ SIAK Database Initialization DAG
 This DAG will run seed_to_siak.py to initialize the SIAK database with seed data.
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from airflow import DAG
-from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
+import sys, os
+from pathlib import Path
 
 # Default arguments for DAG
 default_args = {
@@ -30,10 +32,21 @@ dag = DAG(
     tags=['siak', 'initialization'],
 )
 
+# Function to run seed_to_siak.py directly
+def run_seed_script():
+    # Add script directory to Python path
+    script_dir = '/opt/airflow'
+    sys.path.append(script_dir)
+    
+    # Import the main function from the script
+    from scripts.seed_to_siak import main as seeding
+    # Run the main function
+    seeding()
+
 # Task: Seed SIAK database
-seed_siak_database = BashOperator(
+seed_siak_database = PythonOperator(
     task_id='seed_siak_database',
-    bash_command='python /opt/airflow/scripts/seed_to_siak.py',
+    python_callable=run_seed_script,
     dag=dag,
 )
 

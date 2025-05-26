@@ -23,7 +23,6 @@ from io import BytesIO
 from datetime import datetime
 from dotenv import load_dotenv
 import sys
-import os
 from typing import List
 
 # Add project root to path
@@ -34,12 +33,6 @@ from data_sources.siak_pool import get_db_connection
 
 # Import the MinIO client
 from data_sources.minio_client import get_minio_client
-
-# Import helper functions
-from scripts.helper.checkpoint_manager import (
-    update_extraction_checkpoint,
-    create_extraction_info
-)
 
 # Load environment variables
 load_dotenv()
@@ -86,7 +79,7 @@ def get_table_schema(conn, table_name: str) -> List[str]:
 
 
 
-def extract_from_postgres_to_minio(minio_client):
+def extract_from_postgres_to_minio(minio_client, timestamp):
     """Extract data from PostgreSQL tables and upload to MinIO with versioning"""
     # Bucket for raw data
     raw_bucket = "raw"
@@ -99,9 +92,8 @@ def extract_from_postgres_to_minio(minio_client):
         "academic_records"
     ]
     
-    # Timestamp for this extraction
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_path = f"postgres/{timestamp}"
+    # Base path with timestamp
+    base_path = f"{timestamp}/postgres"
     
     # Determine which tables to extract
     tables_to_extract = set(tables)
@@ -172,7 +164,7 @@ def extract_from_postgres_to_minio(minio_client):
         
         # Upload manifest
         manifest_data = json.dumps(extraction_manifest, indent=2).encode('utf-8')
-        object_name = f"postgres/{timestamp}/_manifest.json"
+        object_name = f"{base_path}/_manifest.json"
         
         minio_client.put_object(
             "raw", 
@@ -183,19 +175,9 @@ def extract_from_postgres_to_minio(minio_client):
         )
         
         logger.info(f"Uploaded extraction manifest to MinIO: {object_name}")
-        
-        # Update checkpoint
-        current_extraction = create_extraction_info(f"postgres/{timestamp}")
-        update_extraction_checkpoint(minio_client, current_extraction)
-        
-        # Log completion dengan proteksi jika latest_extraction None
-        prev_time = 'unknown'
-        if latest_extraction:
-            prev_time = latest_extraction.get('timestamp', 'unknown')
-        
-        logger.info(f"Extraction complete. Previous: {prev_time}, Current: {timestamp}")
+        logger.info(f"PostgreSQL extraction complete. Timestamp: {timestamp}")
 
-def extract_attendance_to_minio(minio_client, attendance_csv_path):
+def extract_attendance_to_minio(minio_client, attendance_csv_path, timestamp):
     """Extract attendance data from CSV and upload to MinIO"""
     # Bucket for raw data
     raw_bucket = "raw"
@@ -206,9 +188,6 @@ def extract_attendance_to_minio(minio_client, attendance_csv_path):
         logger.error(f"Attendance CSV file not found at {attendance_csv_path}")
         return False
     
-    # Timestamp for this extraction
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
     # Read CSV file
     attendance_df = pd.read_csv(attendance_csv_path)
     record_count = len(attendance_df)
@@ -218,8 +197,8 @@ def extract_attendance_to_minio(minio_client, attendance_csv_path):
     attendance_df.to_csv(csv_buffer, index=False)
     csv_buffer.seek(0)
     
-    # Upload to MinIO
-    object_name = f"csv/{timestamp}/attendance.csv"
+    # Upload to MinIO with common timestamp folder
+    object_name = f"{timestamp}/attendance/attendance.csv"
     
     minio_client.put_object(
         bucket_name=raw_bucket,
@@ -244,29 +223,28 @@ def extract_attendance_to_minio(minio_client, attendance_csv_path):
     
     minio_client.put_object(
         bucket_name=raw_bucket,
-        object_name=f"csv/{timestamp}/_manifest.json", 
+        object_name=f"{timestamp}/attendance/_manifest.json", 
         data=manifest_bytes,
         length=len(manifest_json),
         content_type="application/json"
     )
     
     logger.info(f"Uploaded attendance data ({record_count} records) to MinIO: {object_name}")
-    logger.info(f"Uploaded attendance manifest to MinIO: csv/{timestamp}/_manifest.json")
+    logger.info(f"Uploaded attendance manifest to MinIO: {timestamp}/attendance/_manifest.json")
     
     return True
 
-def ensure_buckets_exist(bucket_names):
+def ensure_buckets_exist(minio_client, bucket_names):
     """
     Ensure that the specified buckets exist in MinIO, create them if they don't
     
     Args:
+        minio_client: MinIO client instance
         bucket_names: List of bucket names to check/create
         
     Returns:
         None
     """
-    minio_client = get_minio_client()
-    
     for bucket in bucket_names:
         # Check if bucket exists
         try:
@@ -275,7 +253,7 @@ def ensure_buckets_exist(bucket_names):
                 minio_client.make_bucket(bucket)
                 logger.info(f"Bucket created: {bucket}")
             else:
-                logger.info(f"Bucket already exists: {bucket}")
+                logger.debug(f"Bucket already exists: {bucket}")
         except Exception as e:
             logger.error(f"Error checking/creating bucket {bucket}: {str(e)}")
             raise
@@ -287,20 +265,42 @@ def main():
     # Get MinIO client
     minio_client = get_minio_client()
     
-    # Ensure buckets exist
-    ensure_buckets_exist(["raw", "processed", "checkpoints"])
+    # Generate single timestamp for this extraction run
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    logger.info(f"Using timestamp: {timestamp} for all extractions")
+    
+    # Ensure raw and processed buckets exist
+    ensure_buckets_exist(minio_client, ["raw", "processed"])
     
     # Extract from PostgreSQL and upload to MinIO
     logger.info("Extracting from PostgreSQL")
-    extract_from_postgres_to_minio(minio_client)
+    extract_from_postgres_to_minio(minio_client, timestamp)
     
     # Extract from attendance CSV and upload to MinIO
     logger.info("Extracting from Attendance CSV")
     attendance_csv_path = os.getenv('ATTENDANCE_CSV_PATH', 'data/attendance.csv')
-    success = extract_attendance_to_minio(minio_client, attendance_csv_path)
+    success = extract_attendance_to_minio(minio_client, attendance_csv_path, timestamp)
     
     if success:
-        logger.info("ETL Process completed successfully!")
+        # Create a combined manifest for the entire extraction
+        manifest = {
+            "timestamp": timestamp,
+            "extraction_time": datetime.now().isoformat(),
+            "sources": ["postgres", "attendance"],
+            "path": f"{timestamp}"
+        }
+        
+        # Upload the combined manifest
+        manifest_data = json.dumps(manifest, indent=2).encode('utf-8')
+        minio_client.put_object(
+            bucket_name="raw",
+            object_name=f"{timestamp}/_manifest.json", 
+            data=BytesIO(manifest_data),
+            length=len(manifest_data),
+            content_type="application/json"
+        )
+        
+        logger.info(f"ETL Process completed successfully! All data extracted to raw/{timestamp}/")
     else:
         logger.error("ETL Process completed with errors.")
 

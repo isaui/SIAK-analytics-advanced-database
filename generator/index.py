@@ -287,20 +287,24 @@ def save_attendance_to_csv(data, output_file="data/attendance.csv", max_rows=Non
     Args:
         data: Dictionary containing all generated data
         output_file: Path to the CSV file to save attendance data
+        max_rows: Maximum number of attendance records to generate
     """
-    import os
     import csv
-    from datetime import datetime
+    import os
     
-    # Create directory for output file if it doesn't exist
-    os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     
-    # Generate attendance records
+    print(f"\nGenerating attendance data and saving to {output_file}...")
     print("Generating attendance records...")
+    
+    from generator.attendance_faker import generate_attendance
+    # Pass max_rows to generate_attendance to limit records at generation time
     attendance_records = generate_attendance(
         data["students"], 
         data["class_schedules"], 
-        data["semesters"]
+        data["semesters"],
+        count=max_rows
     )
     
     # Add semester code to each record for better reference
