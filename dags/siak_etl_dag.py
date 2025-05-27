@@ -3,7 +3,9 @@ SIAK ETL Pipeline DAG
 This DAG will:
 1. Simulate changes in PostgreSQL database
 2. Simulate changes in attendance CSV
-3. Extract data from PostgreSQL and CSV to MinIO
+3. Extract data from PostgreSQL and CSV to MinIO raw bucket
+4. Transform raw data to processed format suitable for data warehouse
+5. Export processed data to data warehouse PostgreSQL
 """
 
 from datetime import datetime, timedelta
@@ -94,5 +96,43 @@ extract_to_minio = PythonOperator(
     dag=dag,
 )
 
+# Function to run transform_raw_to_processed.py
+def run_transform_raw_to_processed():
+    # Add scripts directory to path
+    script_dir = '/opt/airflow'
+    sys.path.append(script_dir)
+    
+    # Import transform function from the script
+    from scripts.transform_raw_to_processed import transform_raw_to_processed
+    
+    # Jalankan fungsi transform langsung
+    return transform_raw_to_processed()
+
+# Task 4: Transform data from raw to processed format
+transform_to_processed = PythonOperator(
+    task_id='transform_raw_to_processed',
+    python_callable=run_transform_raw_to_processed,
+    dag=dag,
+)
+
+# Function to run export_processed_to_warehouse.py
+def run_export_to_warehouse():
+    # Add scripts directory to path
+    script_dir = '/opt/airflow'
+    sys.path.append(script_dir)
+    
+    # Import export function from the script
+    from scripts.export_processed_to_warehouse import export_processed_to_warehouse
+    
+    # Jalankan fungsi export langsung tanpa argumen (akan menggunakan timestamp terbaru)
+    return export_processed_to_warehouse()
+
+# Task 5: Export processed data to warehouse
+export_to_warehouse = PythonOperator(
+    task_id='export_to_warehouse',
+    python_callable=run_export_to_warehouse,
+    dag=dag,
+)
+
 # Set task dependencies - execute in sequence
-simulate_postgres_changes >> simulate_csv_changes >> extract_to_minio
+simulate_postgres_changes >> simulate_csv_changes >> extract_to_minio >> transform_to_processed >> export_to_warehouse

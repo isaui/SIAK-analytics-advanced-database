@@ -18,7 +18,6 @@ import os
 import pandas as pd
 import json
 import logging
-import psycopg2.extras
 from io import BytesIO
 from datetime import datetime
 from dotenv import load_dotenv
@@ -33,6 +32,14 @@ from data_sources.siak_pool import get_db_connection
 
 # Import the MinIO client
 from data_sources.minio_client import get_minio_client
+
+# Import MinIO utilities
+from scripts.helper.utils.minio_utils import (
+    ensure_buckets_exist,
+    upload_dataframe_to_minio,
+    upload_json_to_minio,
+    generate_timestamp
+)
 
 # Load environment variables
 load_dotenv()
@@ -76,9 +83,6 @@ def get_table_schema(conn, table_name: str) -> List[str]:
         return []
 
 
-
-
-
 def extract_from_postgres_to_minio(minio_client, timestamp):
     """Extract data from PostgreSQL tables and upload to MinIO with versioning"""
     # Bucket for raw data
@@ -87,7 +91,7 @@ def extract_from_postgres_to_minio(minio_client, timestamp):
     # Tables to extract
     tables = [
         "faculties", "programs", "students", "lecturers", 
-        "courses", "semesters", "class_schedules", 
+        "courses", "semesters", "class_schedules", "rooms",
         "registrations", "grades", "semester_fees",
         "academic_records"
     ]
@@ -127,22 +131,21 @@ def extract_from_postgres_to_minio(minio_client, timestamp):
             data = cursor.fetchall()
             df = pd.DataFrame(data, columns=columns)
             
-            # Convert DataFrame to CSV
-            csv_buffer = BytesIO()
-            df.to_csv(csv_buffer, index=False)
-            csv_buffer.seek(0)
-            
             # Path in MinIO
-            object_name = f"{base_path}/{table}.csv"
+            object_name = f"{base_path}/{table}.parquet"
             
-            # Upload to MinIO
-            minio_client.put_object(
+            # Upload to MinIO using helper function
+            success = upload_dataframe_to_minio(
+                minio_client=minio_client,
+                df=df,
                 bucket_name=raw_bucket,
-                object_name=object_name, 
-                data=csv_buffer,
-                length=len(csv_buffer.getvalue()),
-                content_type="text/csv"
+                object_name=object_name,
+                format='parquet'
             )
+            
+            if not success:
+                logger.error(f"Failed to upload {table} to MinIO")
+                continue
             
             # Update manifest
             manifest_entry = {
@@ -152,7 +155,7 @@ def extract_from_postgres_to_minio(minio_client, timestamp):
             }
             manifest["tables"][table] = manifest_entry
             
-            logger.info(f"Uploaded {table} ({len(df)} records) to MinIO: {object_name}")
+            logger.info(f"Uploaded {table} to MinIO: {len(df)} records")
         
         # Create manifest and save extraction info
         extraction_manifest = {
@@ -192,71 +195,48 @@ def extract_attendance_to_minio(minio_client, attendance_csv_path, timestamp):
     attendance_df = pd.read_csv(attendance_csv_path)
     record_count = len(attendance_df)
     
-    # Convert to CSV (in memory)
-    csv_buffer = BytesIO()
-    attendance_df.to_csv(csv_buffer, index=False)
-    csv_buffer.seek(0)
-    
     # Upload to MinIO with common timestamp folder
-    object_name = f"{timestamp}/attendance/attendance.csv"
+    object_name = f"{timestamp}/attendance/attendance.parquet"
     
-    minio_client.put_object(
+    # Upload to MinIO using helper function
+    success = upload_dataframe_to_minio(
+        minio_client=minio_client,
+        df=attendance_df,
         bucket_name=raw_bucket,
-        object_name=object_name, 
-        data=csv_buffer,
-        length=csv_buffer.getbuffer().nbytes,
-        content_type="text/csv"
+        object_name=object_name,
+        format='parquet'
     )
+    
+    if not success:
+        logger.error(f"Failed to upload attendance data to MinIO")
+        return False
     
     # Create and upload manifest
     manifest = {
         "extraction_time": datetime.now().isoformat(),
-        "source": "csv",
-        "file": "attendance.csv",
+        "source": "attendance_csv",
         "record_count": record_count,
-        "columns": attendance_df.columns.tolist(),
+        "columns": list(attendance_df.columns),
         "path": object_name
     }
     
-    manifest_json = json.dumps(manifest, indent=2)
-    manifest_bytes = BytesIO(manifest_json.encode('utf-8'))
-    
-    minio_client.put_object(
+    # Upload manifest using helper function
+    manifest_object_name = f"{timestamp}/attendance/_manifest.json"
+    success = upload_json_to_minio(
+        minio_client=minio_client,
+        data=manifest,
         bucket_name=raw_bucket,
-        object_name=f"{timestamp}/attendance/_manifest.json", 
-        data=manifest_bytes,
-        length=len(manifest_json),
-        content_type="application/json"
+        object_name=manifest_object_name
     )
     
-    logger.info(f"Uploaded attendance data ({record_count} records) to MinIO: {object_name}")
-    logger.info(f"Uploaded attendance manifest to MinIO: {timestamp}/attendance/_manifest.json")
+    if not success:
+        logger.error(f"Failed to upload attendance manifest to MinIO")
+        return False
+    
+    logger.info(f"Uploaded attendance data to MinIO: {record_count} records")
+    logger.info(f"Uploaded attendance manifest to MinIO: {manifest_object_name}")
     
     return True
-
-def ensure_buckets_exist(minio_client, bucket_names):
-    """
-    Ensure that the specified buckets exist in MinIO, create them if they don't
-    
-    Args:
-        minio_client: MinIO client instance
-        bucket_names: List of bucket names to check/create
-        
-    Returns:
-        None
-    """
-    for bucket in bucket_names:
-        # Check if bucket exists
-        try:
-            if not minio_client.bucket_exists(bucket):
-                logger.info(f"Creating bucket: {bucket}")
-                minio_client.make_bucket(bucket)
-                logger.info(f"Bucket created: {bucket}")
-            else:
-                logger.debug(f"Bucket already exists: {bucket}")
-        except Exception as e:
-            logger.error(f"Error checking/creating bucket {bucket}: {str(e)}")
-            raise
 
 def main():
     """Main function to extract data and upload to MinIO"""
@@ -265,8 +245,8 @@ def main():
     # Get MinIO client
     minio_client = get_minio_client()
     
-    # Generate single timestamp for this extraction run
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Generate single timestamp for this extraction run using helper function
+    timestamp = generate_timestamp()
     logger.info(f"Using timestamp: {timestamp} for all extractions")
     
     # Ensure raw and processed buckets exist

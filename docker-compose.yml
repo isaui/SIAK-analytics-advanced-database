@@ -21,7 +21,7 @@ services:
       "-c", "max_wal_senders=10"
     ]
     ports:
-      - "${DB_PORT}:5432"
+      - "${DB_PORT}:${DB_PORT}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./data_sources/init_siak:/docker-entrypoint-initdb.d
