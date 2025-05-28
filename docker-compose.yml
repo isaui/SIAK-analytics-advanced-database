@@ -137,7 +137,7 @@ services:
     mem_limit: 4g
     environment:
       - AIRFLOW_HOME=/opt/airflow
-      - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:${AIRFLOW__WEBSERVER__WEB_SERVER_PORT}
+      - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:${AIRFLOW_WEBSERVER_WEB_SERVER_PORT}
       - ATTENDANCE_CSV_PATH=/opt/airflow/data/attendance.csv
     volumes:
       - ${AIRFLOW_DAGS_FOLDER}:/opt/airflow/dags
@@ -148,7 +148,7 @@ services:
       - ./generator:/opt/airflow/generator
       - ./data_sources:/opt/airflow/data_sources
     ports:
-      - "${AIRFLOW__WEBSERVER__WEB_SERVER_PORT}:${AIRFLOW__WEBSERVER__WEB_SERVER_PORT}"  # Airflow UI
+      - "${AIRFLOW_WEBSERVER_WEB_SERVER_PORT}:${AIRFLOW_WEBSERVER_WEB_SERVER_PORT}"  # Airflow UI
     user: "${AIRFLOW_UID}:${AIRFLOW_GID}"
     command: >
       bash -c "airflow db init && 
@@ -162,12 +162,28 @@ services:
     restart: always
     networks:
       - siak_network
+  
+  superset:
+    image: apache/superset:latest
+    container_name: superset
+    ports:
+      - "8088:8088"
+    environment:
+      - SUPERSET_SECRET_KEY=my_secret_key
+    depends_on:
+      - postgres-warehouse
+    volumes:
+      - superset_home:/app/superset_home
+    networks:
+    - siak_network 
+
 
 volumes:
   postgres_data:
   warehouse_data:
   minio_data:
   airflow_postgres_data:
+  superset_home:
 
 networks:
   siak_network:
