@@ -136,6 +136,7 @@ services:
       - ./.env
     mem_limit: 4g
     environment:
+      - AIRFLOW__WEBSERVER__WEB_SERVER_HOST=0.0.0.0
       - AIRFLOW_HOME=/opt/airflow
       - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:${AIRFLOW_WEBSERVER_WEB_SERVER_PORT}
       - ATTENDANCE_CSV_PATH=/opt/airflow/data/attendance.csv
@@ -148,7 +149,7 @@ services:
       - ./generator:/opt/airflow/generator
       - ./data_sources:/opt/airflow/data_sources
     ports:
-      - "${AIRFLOW_WEBSERVER_WEB_SERVER_PORT}:${AIRFLOW_WEBSERVER_WEB_SERVER_PORT}"  # Airflow UI
+      - "${AIRFLOW_WEBSERVER_WEB_SERVER_PORT}:8080"  # Airflow UI
     user: "${AIRFLOW_UID}:${AIRFLOW_GID}"
     command: >
       bash -c "airflow db init && 
