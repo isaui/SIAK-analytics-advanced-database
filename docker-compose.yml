@@ -140,7 +140,7 @@ services:
       - ATTENDANCE_CSV_PATH=/opt/airflow/data/attendance.csv
     volumes:
       - ${AIRFLOW_DAGS_FOLDER}:/opt/airflow/dags
-      - ${AIRFLOW_LOGS_FOLDER}:/opt/airflow/logs
+      - ./logs:/opt/airflow/logs
       - ${AIRFLOW_PLUGINS_FOLDER}:/opt/airflow/plugins
       - ./scripts:/opt/airflow/scripts
       - ./data:/opt/airflow/data
@@ -148,7 +148,7 @@ services:
       - ./data_sources:/opt/airflow/data_sources
     ports:
       - "${AIRFLOW_WEBSERVER_WEB_SERVER_PORT}:8080"  # Airflow UI
-    user: "${AIRFLOW_UID}:${AIRFLOW_GID}"
+    user: "root"
     command: >
       bash -c "airflow db init && 
       airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com && 
