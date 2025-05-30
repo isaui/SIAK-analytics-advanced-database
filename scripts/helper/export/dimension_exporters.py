@@ -222,11 +222,9 @@ def export_all_dimensions(minio_client: Minio, timestamp: str, bucket_name: str 
     results = {}
     
     # Export dimensions in proper order (respect foreign key constraints)
-    # 1. Faculty (no dependencies)
-    results['dim_faculty'] = export_dim_faculty(minio_client, timestamp, bucket_name)
-    
-    # 2. Program (depends on faculty)
-    results['dim_program'] = export_dim_program(minio_client, timestamp, bucket_name)
+
+    # # 2. Program (depends on faculty)
+    # results['dim_program'] = export_dim_program(minio_client, timestamp, bucket_name)
     
     # 3. Student (depends on program)
     results['dim_student'] = export_dim_student(minio_client, timestamp, bucket_name)

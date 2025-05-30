@@ -26,13 +26,12 @@ from data_sources.minio_client import get_minio_client
 
 # Import transformation functions
 from scripts.helper.transform.dimension_transforms import (
-    transform_dim_faculty,
-    transform_dim_program,
     transform_dim_student,
     transform_dim_course,
     transform_dim_semester,
     transform_dim_lecturer,
-    transform_dim_class
+    transform_dim_class,
+    transform_dim_room
 )
 
 from scripts.helper.transform.fact_transforms import (
@@ -64,7 +63,7 @@ logger = logging.getLogger('transform_raw_to_processed')
 
 def transform_dimensions(minio_client, raw_timestamp: str, process_timestamp: str) -> Dict[str, bool]:
     """
-    Transform all dimension tables
+    Transform all dimension tables to denormalized format
     
     Args:
         minio_client: MinIO client instance
@@ -76,59 +75,82 @@ def transform_dimensions(minio_client, raw_timestamp: str, process_timestamp: st
     """
     results = {}
     
-    # Transform faculty dimension
+    # First, load all dataframes that will be needed for joins
+    # We load these first to avoid loading multiple times
     try:
-        logger.info("Transforming dimension: faculty")
-        df = read_dataframe_from_minio(
+        # Load faculties
+        faculties_df = read_dataframe_from_minio(
             minio_client, 
             "raw", 
             f"{raw_timestamp}/postgres/faculties.parquet"
         )
         
-        if df is not None and not df.empty:
-            df_transformed = transform_dim_faculty(df)
-            success = upload_dataframe_to_minio(
-                minio_client,
-                df_transformed,
-                "processed",
-                f"{process_timestamp}/dimensions/dim_faculty.parquet"
-            )
-            results['dim_faculty'] = success
-        else:
-            logger.warning(f"No faculty data found for timestamp {raw_timestamp}")
-            results['dim_faculty'] = False
-    except Exception as e:
-        logger.error(f"Error transforming faculty dimension: {str(e)}")
-        results['dim_faculty'] = False
-    
-    # Transform program dimension
-    try:
-        logger.info("Transforming dimension: program")
-        df = read_dataframe_from_minio(
+        # Load programs
+        programs_df = read_dataframe_from_minio(
             minio_client, 
             "raw", 
             f"{raw_timestamp}/postgres/programs.parquet"
         )
         
-        if df is not None and not df.empty:
-            df_transformed = transform_dim_program(df)
+        # Load rooms
+        rooms_df = read_dataframe_from_minio(
+            minio_client, 
+            "raw", 
+            f"{raw_timestamp}/postgres/rooms.parquet"
+        )
+        
+        # Load courses
+        courses_df = read_dataframe_from_minio(
+            minio_client, 
+            "raw", 
+            f"{raw_timestamp}/postgres/courses.parquet"
+        )
+        
+        # Load lecturers
+        lecturers_df = read_dataframe_from_minio(
+            minio_client, 
+            "raw", 
+            f"{raw_timestamp}/postgres/lecturers.parquet"
+        )
+        
+        # Load semesters
+        semesters_df = read_dataframe_from_minio(
+            minio_client, 
+            "raw", 
+            f"{raw_timestamp}/postgres/semesters.parquet"
+        )
+    except Exception as e:
+        logger.error(f"Error loading source dataframes: {str(e)}")
+        # Set empty dataframes if loading fails
+        faculties_df = pd.DataFrame()
+        programs_df = pd.DataFrame()
+        rooms_df = pd.DataFrame()
+        courses_df = pd.DataFrame()
+        lecturers_df = pd.DataFrame()
+        semesters_df = pd.DataFrame()
+    
+    # Transform room dimension
+    try:
+        logger.info("Transforming dimension: room")
+        if rooms_df is not None and not rooms_df.empty:
+            df_transformed = transform_dim_room(rooms_df)
             success = upload_dataframe_to_minio(
                 minio_client,
                 df_transformed,
                 "processed",
-                f"{process_timestamp}/dimensions/dim_program.parquet"
+                f"{process_timestamp}/dimensions/dim_room.parquet"
             )
-            results['dim_program'] = success
+            results['dim_room'] = success
         else:
-            logger.warning(f"No program data found for timestamp {raw_timestamp}")
-            results['dim_program'] = False
+            logger.warning(f"No room data found for timestamp {raw_timestamp}")
+            results['dim_room'] = False
     except Exception as e:
-        logger.error(f"Error transforming program dimension: {str(e)}")
-        results['dim_program'] = False
+        logger.error(f"Error transforming room dimension: {str(e)}")
+        results['dim_room'] = False
     
-    # Transform student dimension
+    # Transform student dimension (denormalized with program and faculty)
     try:
-        logger.info("Transforming dimension: student")
+        logger.info("Transforming dimension: student (denormalized)")
         df = read_dataframe_from_minio(
             minio_client, 
             "raw", 
@@ -136,7 +158,7 @@ def transform_dimensions(minio_client, raw_timestamp: str, process_timestamp: st
         )
         
         if df is not None and not df.empty:
-            df_transformed = transform_dim_student(df)
+            df_transformed = transform_dim_student(df, programs_df, faculties_df)
             success = upload_dataframe_to_minio(
                 minio_client,
                 df_transformed,
@@ -151,17 +173,11 @@ def transform_dimensions(minio_client, raw_timestamp: str, process_timestamp: st
         logger.error(f"Error transforming student dimension: {str(e)}")
         results['dim_student'] = False
     
-    # Transform course dimension
+    # Transform course dimension (denormalized with program and faculty)
     try:
-        logger.info("Transforming dimension: course")
-        df = read_dataframe_from_minio(
-            minio_client, 
-            "raw", 
-            f"{raw_timestamp}/postgres/courses.parquet"
-        )
-        
-        if df is not None and not df.empty:
-            df_transformed = transform_dim_course(df)
+        logger.info("Transforming dimension: course (denormalized)")
+        if courses_df is not None and not courses_df.empty:
+            df_transformed = transform_dim_course(courses_df, programs_df, faculties_df)
             success = upload_dataframe_to_minio(
                 minio_client,
                 df_transformed,
@@ -179,14 +195,8 @@ def transform_dimensions(minio_client, raw_timestamp: str, process_timestamp: st
     # Transform semester dimension
     try:
         logger.info("Transforming dimension: semester")
-        df = read_dataframe_from_minio(
-            minio_client, 
-            "raw", 
-            f"{raw_timestamp}/postgres/semesters.parquet"
-        )
-        
-        if df is not None and not df.empty:
-            df_transformed = transform_dim_semester(df)
+        if semesters_df is not None and not semesters_df.empty:
+            df_transformed = transform_dim_semester(semesters_df)
             success = upload_dataframe_to_minio(
                 minio_client,
                 df_transformed,
@@ -201,17 +211,11 @@ def transform_dimensions(minio_client, raw_timestamp: str, process_timestamp: st
         logger.error(f"Error transforming semester dimension: {str(e)}")
         results['dim_semester'] = False
     
-    # Transform lecturer dimension
+    # Transform lecturer dimension (denormalized with faculty)
     try:
-        logger.info("Transforming dimension: lecturer")
-        df = read_dataframe_from_minio(
-            minio_client, 
-            "raw", 
-            f"{raw_timestamp}/postgres/lecturers.parquet"
-        )
-        
-        if df is not None and not df.empty:
-            df_transformed = transform_dim_lecturer(df)
+        logger.info("Transforming dimension: lecturer (denormalized)")
+        if lecturers_df is not None and not lecturers_df.empty:
+            df_transformed = transform_dim_lecturer(lecturers_df, faculties_df)
             success = upload_dataframe_to_minio(
                 minio_client,
                 df_transformed,
@@ -225,29 +229,24 @@ def transform_dimensions(minio_client, raw_timestamp: str, process_timestamp: st
     except Exception as e:
         logger.error(f"Error transforming lecturer dimension: {str(e)}")
         results['dim_lecturer'] = False
-    
-    # Transform class dimension (needs class_schedules and rooms)
+        
+    # Transform class dimension (denormalized with multiple tables)
     try:
-        logger.info("Transforming dimension: class")
-        df = read_dataframe_from_minio(
+        logger.info("Transforming dimension: class (denormalized)")
+        class_schedules_df = read_dataframe_from_minio(
             minio_client, 
             "raw", 
             f"{raw_timestamp}/postgres/class_schedules.parquet"
         )
         
-        if df is not None and not df.empty:
-            # Check if rooms table exists, use it if available
-            rooms_df = None
-            try:
-                rooms_df = read_dataframe_from_minio(
-                    minio_client, 
-                    "raw", 
-                    f"{raw_timestamp}/postgres/rooms.parquet"
-                )
-            except Exception:
-                logger.warning("Rooms data not available, using None for room information")
-            
-            df_transformed = transform_dim_class(df, rooms_df)
+        if class_schedules_df is not None and not class_schedules_df.empty:
+            df_transformed = transform_dim_class(
+                class_schedules_df, 
+                rooms_df,
+                courses_df,
+                lecturers_df,
+                semesters_df
+            )
             success = upload_dataframe_to_minio(
                 minio_client,
                 df_transformed,

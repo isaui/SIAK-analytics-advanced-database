@@ -138,36 +138,90 @@ def transform_fact_attendance(df: pd.DataFrame, class_schedules_df: pd.DataFrame
     Returns:
         Transformed DataFrame
     """
+    if df.empty:
+        return pd.DataFrame()
+    
+    # Print data types for debugging
+    print(f"Attendance class_schedule_id dtype: {df['class_schedule_id'].dtype}")
+    print(f"Class schedules id dtype: {class_schedules_df['id'].dtype}")
+    
+    # Make copies to avoid modifying original dataframes
+    attendance_df = df.copy()
+    schedules_df = class_schedules_df.copy()
+    
+    # Ensure consistent data types for join columns
+    attendance_df['class_schedule_id'] = attendance_df['class_schedule_id'].astype(int)
+    schedules_df['id'] = schedules_df['id'].astype(int)
+    
     # Rename class_schedules columns to avoid confusion
-    class_schedules_df = class_schedules_df.rename(columns={'id': 'class_id'})
+    schedules_df = schedules_df.rename(columns={'id': 'class_id'})
     
     # Join attendance with class_schedules
-    df = pd.merge(
-        df, 
-        class_schedules_df,
-        left_on='class_schedule_id',
-        right_on='class_id',
-        how='inner'
-    )
+    try:
+        merged_df = pd.merge(
+            attendance_df, 
+            schedules_df,
+            left_on='class_schedule_id',
+            right_on='class_id',
+            how='inner'
+        )
+    except Exception as e:
+        print(f"Error during merge: {str(e)}")
+        # Alternative approach if merge fails
+        print("Trying alternative approach with explicit type conversion")
+        attendance_df['class_schedule_id'] = attendance_df['class_schedule_id'].astype(str)
+        schedules_df['class_id'] = schedules_df['class_id'].astype(str)
+        merged_df = pd.merge(
+            attendance_df, 
+            schedules_df,
+            left_on='class_schedule_id',
+            right_on='class_id',
+            how='inner'
+        )
     
     # Create attendance_id as index
-    df = df.reset_index()
-    df['attendance_id'] = df.index + 1
+    merged_df = merged_df.reset_index(drop=True)
+    merged_df['attendance_id'] = merged_df.index + 1
+    
+    # Resolve any column name conflicts
+    column_mapping = {}
+    # Handle potential suffixes from merge
+    if 'student_id_x' in merged_df.columns:
+        column_mapping['student_id_x'] = 'student_id'
+    if 'course_id_x' in merged_df.columns:
+        column_mapping['course_id_x'] = 'course_id'
+    
+    # Apply column renaming if needed
+    if column_mapping:
+        merged_df = merged_df.rename(columns=column_mapping)
+    
+    # Ensure class_id is included
+    if 'class_id' not in merged_df.columns and 'class_schedule_id' in merged_df.columns:
+        merged_df['class_id'] = merged_df['class_schedule_id']
     
     # Transform to match warehouse schema
-    df_transformed = df.rename(columns={
-        'student_id_x': 'student_id' if 'student_id_x' in df.columns else 'student_id',
-        'course_id_x': 'course_id' if 'course_id_x' in df.columns else 'course_id',
-        'class_id': 'class_id',
+    column_mapping = {
         'semester_id': 'semester_id',
         'meeting_date': 'attendance_date',
         'check_in_time': 'check_in_time'
-    })
+    }
+    
+    # Apply remaining column renaming
+    merged_df = merged_df.rename(columns=column_mapping)
     
     # Select only needed columns
-    df_transformed = df_transformed[[
+    needed_columns = [
         'attendance_id', 'student_id', 'course_id', 'class_id',
-        'semester_id', 'attendance_date', 'check_in_time'
-    ]]
+        'attendance_date', 'check_in_time'
+    ]
+    
+    # Ensure all needed columns exist
+    for col in needed_columns:
+        if col not in merged_df.columns:
+            print(f"Warning: Column {col} missing from merged dataframe")
+            merged_df[col] = None
+    
+    # Create the final transformed dataframe with only the needed columns
+    df_transformed = merged_df[needed_columns]
     
     return df_transformed
