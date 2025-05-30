@@ -28,10 +28,10 @@ load_dotenv()
 # Default connection parameters
 DEFAULT_CONFIG = {
     "host": os.getenv("WAREHOUSE_DB_HOST", "localhost"),
-    "port": 5432,  # PostgreSQL selalu berjalan di port 5432 di dalam container
     "database": os.getenv("WAREHOUSE_DB_NAME", "siak_warehouse"),
     "user": os.getenv("WAREHOUSE_DB_USER", "warehouse_user"),
-    "password": os.getenv("WAREHOUSE_DB_PASSWORD", "warehouse_password")
+    "password": os.getenv("WAREHOUSE_DB_PASSWORD", "warehouse_password"),
+    "port": os.getenv("WAREHOUSE_DB_PORT", 5432)
 }
 
 # Connection pool settings
