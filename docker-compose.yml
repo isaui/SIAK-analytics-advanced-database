@@ -25,11 +25,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./data_sources/init_siak:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
     networks:
       - siak_network
   
@@ -46,11 +41,6 @@ services:
     volumes:
       - warehouse_data:/var/lib/postgresql/data
       - ./data_sources/init_warehouse:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${WAREHOUSE_DB_USER} -d ${WAREHOUSE_DB_NAME}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
     networks:
       - siak_network
 
@@ -109,11 +99,6 @@ services:
       POSTGRES_DB: airflow
     volumes:
       - airflow_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U airflow"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
     networks:
       - siak_network
 
@@ -124,14 +109,10 @@ services:
       dockerfile: Dockerfile.airflow
     container_name: siak_airflow
     depends_on:
-      postgres-airflow:
-        condition: service_healthy
-      minio:
-        condition: service_started
-      postgres:
-        condition: service_healthy
-      postgres-warehouse:
-        condition: service_healthy
+      - postgres-airflow
+      - minio
+      - postgres
+      - postgres-warehouse
     env_file:
       - ./.env
     mem_limit: 4g
@@ -140,7 +121,7 @@ services:
       - ATTENDANCE_CSV_PATH=/opt/airflow/data/attendance.csv
     volumes:
       - ${AIRFLOW_DAGS_FOLDER}:/opt/airflow/dags
-      - ${AIRFLOW_LOGS_FOLDER}:/opt/airflow/logs
+      - ./logs:/opt/airflow/logs
       - ${AIRFLOW_PLUGINS_FOLDER}:/opt/airflow/plugins
       - ./scripts:/opt/airflow/scripts
       - ./data:/opt/airflow/data
@@ -148,16 +129,11 @@ services:
       - ./data_sources:/opt/airflow/data_sources
     ports:
       - "${AIRFLOW_WEBSERVER_WEB_SERVER_PORT}:8080"  # Airflow UI
-    user: "${AIRFLOW_UID}:${AIRFLOW_GID}"
+    user: "root"
     command: >
       bash -c "airflow db init && 
       airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com && 
       airflow scheduler & airflow webserver"
-    healthcheck:
-      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $${HOSTNAME}"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
     restart: always
     networks:
       - siak_network
