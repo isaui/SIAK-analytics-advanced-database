@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 import sys
 import os
 
@@ -36,6 +37,8 @@ dag = DAG(
     catchup=False,
     tags=['siak', 'etl'],
 )
+
+#DAG 1: GENERATE
 
 # Function to run simulate_postgres_changes.py
 def run_postgres_changes():
@@ -76,6 +79,16 @@ simulate_csv_changes = PythonOperator(
     python_callable=run_csv_changes,
     dag=dag,
 )
+
+trigger_etl = TriggerDagRunOperator(
+    task_id='trigger_etl_pipeline',
+    trigger_dag_id='siak_etl_pipeline',
+    dag=dag,
+)
+
+simulate_postgres_changes >> simulate_csv_changes >> trigger_etl
+
+#DAG 2: ETL PIPELINE
 
 # Function to run extract_siak_to_minio.py
 def run_extract_to_minio():
@@ -135,4 +148,4 @@ export_to_warehouse = PythonOperator(
 )
 
 # Set task dependencies - execute in sequence
-simulate_postgres_changes >> simulate_csv_changes >> extract_to_minio >> transform_to_processed >> export_to_warehouse
+extract_to_minio >> transform_to_processed >> export_to_warehouse
