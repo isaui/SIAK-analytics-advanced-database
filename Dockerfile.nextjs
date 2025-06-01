@@ -1,46 +1,46 @@
-FROM node:18-alpine AS base
+FROM node:22-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Rebuild the source code only when needed
-FROM base AS builder
-WORKDIR /app
+# Copy package files and install dependencies
+COPY dashboard/package*.json ./
+RUN npm install
 
-# Copy source files first
+# Copy application code
 COPY dashboard .
 
-# Install dependencies
-RUN npm ci
+# Add build arguments for env vars
+ARG WAREHOUSE_DB_HOST
+ARG WAREHOUSE_DB_PORT
+ARG WAREHOUSE_DB_USER
+ARG WAREHOUSE_DB_PASSWORD
+ARG WAREHOUSE_DB_NAME
+ARG FLAVOR
+ARG DB_HOST
+ARG DB_PORT
+ARG DB_USER
+ARG DB_PASSWORD
+ARG DB_NAME
 
-# Next.js collects completely anonymous telemetry data about general usage.
-# Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line in case you want to disable telemetry during the build.
-ENV NEXT_TELEMETRY_DISABLED 1
+# Set env vars for build time
+ENV WAREHOUSE_DB_HOST=${WAREHOUSE_DB_HOST}
+ENV WAREHOUSE_DB_PORT=${WAREHOUSE_DB_PORT}
+ENV WAREHOUSE_DB_USER=${WAREHOUSE_DB_USER}
+ENV WAREHOUSE_DB_PASSWORD=${WAREHOUSE_DB_PASSWORD}
+ENV WAREHOUSE_DB_NAME=${WAREHOUSE_DB_NAME}
+ENV FLAVOR=${FLAVOR}
+ENV DB_HOST=${DB_HOST}
+ENV DB_PORT=${DB_PORT}
+ENV DB_USER=${DB_USER}
+ENV DB_PASSWORD=${DB_PASSWORD}
+ENV DB_NAME=${DB_NAME}
 
+# Build application
 RUN npm run build
 
-# Production image, copy all the files and run next
-FROM base AS runner
-WORKDIR /app
-
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
-
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-COPY --from=builder /app/public ./public
-
-# Automatically leverage output traces to reduce image size
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-USER nextjs
-
 EXPOSE 3000
+ENV PORT=3000
 
-ENV PORT 3000
-
-# Start the app
-CMD ["node", "server.js"]
+# Use start for production build
+CMD ["npm", "run", "start"]

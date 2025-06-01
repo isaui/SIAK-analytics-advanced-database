@@ -479,7 +479,7 @@ def main(changes=20, commit=True):
                 conn.rollback()
                 logger.info(f"Rolled back {changes_made} changes (dry run)")
         except Exception as e:
-            conn.rollback()
+            
             logger.error(f"Error in simulation: {str(e)}")
     
     logger.info("Simulation completed")

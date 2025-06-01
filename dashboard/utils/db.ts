@@ -1,32 +1,37 @@
 import { Pool, PoolClient } from 'pg';
 
+// Lazy initialization - pool akan dibuat saat pertama kali dibutuhkan
+let pool: Pool;
 
-
-// Environment variables are passed from the docker-compose.yml configuration
-const pool = new Pool({
-  host: process.env.WAREHOUSE_DB_HOST || 'localhost',
-  port: process.env.NODE_ENV === 'production' ? 5432 : 5433,
-  user: process.env.WAREHOUSE_DB_USER || 'warehouse_user',
-  password: process.env.WAREHOUSE_DB_PASSWORD || 'warehouse_password',
-  database: process.env.WAREHOUSE_DB_NAME || 'siak_warehouse',
-});
+function getPool(): Pool {
+  if (!pool) {
+    pool = new Pool({
+      host: "warehouse_postgres",
+      port: 5432,
+      user: "warehouse_user",
+      password: "warehouse_password",
+      database: "siak_warehouse",
+    });
+  }
+  return pool;
+}
 
 export async function query(text: string, params?: any[]) {
   try {
     const start = Date.now();
-    const result = await pool.query(text, params);
+    const result = await getPool().query(text, params);
     const duration = Date.now() - start;
     console.log('Executed query', { text, duration, rows: result.rowCount });
     return result;
   } catch (error) {
-    console.error('Database query error:', error);
+    console.log('Database query error:', error);
     throw error;
   }
-}
+}                                                                                                                               
 
 export async function getClient(): Promise<PoolClient> {
   try {
-    const client = await pool.connect();
+    const client = await getPool().connect();
     const query = client.query;
     const release = client.release;
     
@@ -46,5 +51,5 @@ export async function getClient(): Promise<PoolClient> {
 export default {
   query,
   getClient,
-  pool,
+  pool: getPool
 };
