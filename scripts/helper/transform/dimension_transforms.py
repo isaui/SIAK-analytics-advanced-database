@@ -21,13 +21,12 @@ def transform_dim_room(df: pd.DataFrame) -> pd.DataFrame:
     # Transform - rename columns to match warehouse schema
     df_transformed = df.rename(columns={
         'id': 'room_id',
-        'room_number': 'room_number',
         'building': 'building',
         'capacity': 'capacity'
     })
     
-    # Select only needed columns
-    df_transformed = df_transformed[['room_id', 'room_number', 'building', 'capacity']]
+    # Select only needed columns (room_number removed from warehouse schema)
+    df_transformed = df_transformed[['room_id', 'building', 'capacity']]
     
     return df_transformed
 
@@ -309,7 +308,7 @@ def transform_dim_class(df: pd.DataFrame, rooms_df: pd.DataFrame = None,
     
     Args:
         df: Raw class_schedules data
-        rooms_df: Optional rooms data for joining
+        rooms_df: Optional rooms data for joining (not used in final output - room info moved to fact level)
         courses_df: Optional courses data for joining
         lecturers_df: Optional lecturers data for joining
         semesters_df: Optional semesters data for joining
@@ -338,7 +337,6 @@ def transform_dim_class(df: pd.DataFrame, rooms_df: pd.DataFrame = None,
     result['course_code'] = None
     result['course_name'] = None
     result['lecturer_name'] = None
-    result['room_number'] = None
     result['semester_code'] = None
     result['academic_year'] = None
     
@@ -374,20 +372,6 @@ def transform_dim_class(df: pd.DataFrame, rooms_df: pd.DataFrame = None,
             if lecturer_id in lecturer_mapping:
                 result.at[idx, 'lecturer_name'] = lecturer_mapping[lecturer_id]
     
-    # Add room information if available
-    if rooms_df is not None and not rooms_df.empty:
-        rooms = rooms_df.copy()
-        room_mapping = {}
-        for _, room in rooms.iterrows():
-            room_mapping[room['id']] = room['room_number']
-            
-        for idx, class_row in result.iterrows():
-            class_data = classes.loc[classes['id'] == class_row['class_id']].iloc[0]
-            room_id = class_data['room_id']
-            
-            if room_id in room_mapping:
-                result.at[idx, 'room_number'] = room_mapping[room_id]
-    
     # Add semester information if available
     if semesters_df is not None and not semesters_df.empty:
         semesters = semesters_df.copy()
@@ -418,9 +402,10 @@ def transform_dim_class(df: pd.DataFrame, rooms_df: pd.DataFrame = None,
                     result.at[idx, 'academic_year'] = f"AY-{semester_code}"
     
     # Ensure all required columns exist and are in the right order as per schema
+    # Note: room_number removed from warehouse schema - room info handled at fact level
     required_columns = [
         'class_id', 'class_code', 'course_code', 'course_name', 'lecturer_name',
-        'room_number', 'day_of_week', 'start_time', 'end_time',
+        'day_of_week', 'start_time', 'end_time',
         'semester_code', 'academic_year'
     ]
     

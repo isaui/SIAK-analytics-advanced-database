@@ -138,31 +138,22 @@ services:
     networks:
       - siak_network
   
-  superset:
+
+  dashboard:
     build:
       context: .
-      dockerfile: Dockerfile.superset
-    container_name: superset
+      dockerfile: Dockerfile.nextjs
+    container_name: siak_dashboard
+    restart: unless-stopped
+    env_file:
+      - ./.env
     ports:
-      - "8088:8088"
-    environment:
-      - SUPERSET_SECRET_KEY=my_secret_key
-      - SUPERSET_ADMIN_USERNAME=${SUPERSET_ADMIN_USERNAME}
-      - SUPERSET_ADMIN_PASSWORD=${SUPERSET_ADMIN_PASSWORD}
-      - SUPERSET_ADMIN_EMAIL=${SUPERSET_ADMIN_EMAIL}
-      - SUPERSET_ADMIN_FIRSTNAME=${SUPERSET_ADMIN_FIRSTNAME}
-      - SUPERSET_ADMIN_LASTNAME=${SUPERSET_ADMIN_LASTNAME}
+      - "3000:3000"
     depends_on:
       - postgres-warehouse
-    volumes:
-      - superset_home:/app/superset_home
-    command: >
-      bash -c "superset db upgrade && \
-      superset fab create-admin --username $${SUPERSET_ADMIN_USERNAME} --firstname $${SUPERSET_ADMIN_FIRSTNAME} --lastname $${SUPERSET_ADMIN_LASTNAME} --email $${SUPERSET_ADMIN_EMAIL} --password $${SUPERSET_ADMIN_PASSWORD} && \
-      superset init && \
-      gunicorn --workers=10 --timeout=120 --bind=0.0.0.0:8088 'superset.app:create_app()'"
+      - minio
     networks:
-    - siak_network 
+      - siak_network
 
 
 volumes:
@@ -170,7 +161,7 @@ volumes:
   warehouse_data:
   minio_data:
   airflow_postgres_data:
-  superset_home:
+  dashboard_node_modules:
 
 networks:
   siak_network:

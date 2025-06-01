@@ -141,10 +141,6 @@ def transform_fact_attendance(df: pd.DataFrame, class_schedules_df: pd.DataFrame
     if df.empty:
         return pd.DataFrame()
     
-    # Print data types for debugging
-    print(f"Attendance class_schedule_id dtype: {df['class_schedule_id'].dtype}")
-    print(f"Class schedules id dtype: {class_schedules_df['id'].dtype}")
-    
     # Make copies to avoid modifying original dataframes
     attendance_df = df.copy()
     schedules_df = class_schedules_df.copy()
@@ -166,9 +162,9 @@ def transform_fact_attendance(df: pd.DataFrame, class_schedules_df: pd.DataFrame
             how='inner'
         )
     except Exception as e:
-        print(f"Error during merge: {str(e)}")
+        logger.error(f"Error during merge: {str(e)}")
         # Alternative approach if merge fails
-        print("Trying alternative approach with explicit type conversion")
+        logger.info("Trying alternative approach with explicit type conversion")
         attendance_df['class_schedule_id'] = attendance_df['class_schedule_id'].astype(str)
         schedules_df['class_id'] = schedules_df['class_id'].astype(str)
         merged_df = pd.merge(
@@ -183,13 +179,16 @@ def transform_fact_attendance(df: pd.DataFrame, class_schedules_df: pd.DataFrame
     merged_df = merged_df.reset_index(drop=True)
     merged_df['attendance_id'] = merged_df.index + 1
     
-    # Resolve any column name conflicts
+    # Resolve any column name conflicts from merge
     column_mapping = {}
-    # Handle potential suffixes from merge
     if 'student_id_x' in merged_df.columns:
         column_mapping['student_id_x'] = 'student_id'
     if 'course_id_x' in merged_df.columns:
         column_mapping['course_id_x'] = 'course_id'
+    if 'room_id_x' in merged_df.columns:
+        column_mapping['room_id_x'] = 'room_id'
+    elif 'room_id_y' in merged_df.columns:
+        column_mapping['room_id_y'] = 'room_id'
     
     # Apply column renaming if needed
     if column_mapping:
@@ -201,7 +200,6 @@ def transform_fact_attendance(df: pd.DataFrame, class_schedules_df: pd.DataFrame
     
     # Transform to match warehouse schema
     column_mapping = {
-        'semester_id': 'semester_id',
         'meeting_date': 'attendance_date',
         'check_in_time': 'check_in_time'
     }
@@ -209,19 +207,131 @@ def transform_fact_attendance(df: pd.DataFrame, class_schedules_df: pd.DataFrame
     # Apply remaining column renaming
     merged_df = merged_df.rename(columns=column_mapping)
     
-    # Select only needed columns
+    # Select only needed columns (including room_id as per updated warehouse schema)
     needed_columns = [
-        'attendance_id', 'student_id', 'course_id', 'class_id',
+         'student_id', 'course_id', 'class_id', 'room_id',
         'attendance_date', 'check_in_time'
     ]
     
     # Ensure all needed columns exist
     for col in needed_columns:
         if col not in merged_df.columns:
-            print(f"Warning: Column {col} missing from merged dataframe")
+            logger.warning(f"Column {col} missing from merged dataframe")
             merged_df[col] = None
     
     # Create the final transformed dataframe with only the needed columns
     df_transformed = merged_df[needed_columns]
+    
+    return df_transformed
+
+
+def transform_fact_teaching(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Transform class_schedules to fact_teaching (lecturer teaching loads)
+    
+    Args:
+        df: Raw class_schedules data
+        
+    Returns:
+        Transformed DataFrame for teaching facts
+    """
+    if df.empty:
+        return pd.DataFrame()
+    
+    import random
+    
+    # Create a copy to avoid modifying original
+    teaching_df = df.copy()
+    
+    # Create teaching_id as index
+    teaching_df = teaching_df.reset_index(drop=True)
+    teaching_df['teaching_id'] = teaching_df.index + 1
+    
+    # Transform - rename columns to match warehouse schema
+    df_transformed = teaching_df.rename(columns={
+        'id': 'class_id',
+        'lecturer_id': 'lecturer_id',
+        'course_id': 'course_id',
+        'semester_id': 'semester_id',
+        'room_id': 'room_id'
+    })
+    
+    # Generate realistic random metrics 😎
+    random.seed(42)  # Consistent randomness for reproducibility
+    
+    df_transformed['total_students'] = [random.randint(15, 45) for _ in range(len(df_transformed))]  # 15-45 students per class
+    df_transformed['total_sessions'] = [random.randint(14, 16) for _ in range(len(df_transformed))]  # 14-16 sessions per semester
+    df_transformed['sessions_completed'] = [random.randint(0, sessions) for sessions in df_transformed['total_sessions']]  # 0 to total sessions
+    df_transformed['teaching_hours'] = [round(random.uniform(2.0, 4.0), 1) for _ in range(len(df_transformed))]  # 2-4 hours per session
+    
+    # Select only needed columns
+    needed_columns = [
+        'teaching_id', 'lecturer_id', 'course_id', 'semester_id', 'class_id', 'room_id',
+        'total_students', 'total_sessions', 'sessions_completed', 'teaching_hours'
+    ]
+    
+    df_transformed = df_transformed[needed_columns]
+    
+    return df_transformed
+
+
+def transform_fact_room_usage(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Transform class_schedules to fact_room_usage (room utilization)
+    
+    Args:
+        df: Raw class_schedules data
+        
+    Returns:
+        Transformed DataFrame for room usage facts
+    """
+    if df.empty:
+        return pd.DataFrame()
+    
+    import random
+    import datetime
+    
+    # Create a copy to avoid modifying original
+    usage_df = df.copy()
+    
+    # Create usage_id as index
+    usage_df = usage_df.reset_index(drop=True)
+    usage_df['usage_id'] = usage_df.index + 1
+    
+    # Transform - rename columns to match warehouse schema
+    df_transformed = usage_df.rename(columns={
+        'id': 'class_id',
+        'room_id': 'room_id',
+        'semester_id': 'semester_id',
+        'start_time': 'start_time',
+        'end_time': 'end_time'
+    })
+    
+    # Generate realistic random dates and metrics 🎲
+    random.seed(123)  # Different seed for variety
+    
+    # Random dates within semester (last 3 months)
+    base_date = datetime.date.today() - datetime.timedelta(days=90)
+    df_transformed['usage_date'] = [
+        base_date + datetime.timedelta(days=random.randint(0, 90)) 
+        for _ in range(len(df_transformed))
+    ]
+    
+    # Random occupancy (10-40 students, most classes moderately filled)
+    df_transformed['actual_occupancy'] = [random.randint(10, 40) for _ in range(len(df_transformed))]
+    
+    # Utilization rate based on occupancy (assume room capacity ~50)
+    df_transformed['utilization_rate'] = [
+        round((occupancy / 50.0) * 100, 2) 
+        for occupancy in df_transformed['actual_occupancy']
+    ]
+    
+    # Select only needed columns
+    needed_columns = [
+        'usage_id', 'room_id', 'class_id', 'semester_id', 'usage_date',
+        'start_time', 'end_time', 'actual_occupancy', 'utilization_rate'
+    ]
+    
+    df_transformed = df_transformed[needed_columns]
     
     return df_transformed

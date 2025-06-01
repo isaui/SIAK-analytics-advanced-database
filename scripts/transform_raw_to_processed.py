@@ -39,7 +39,9 @@ from scripts.helper.transform.fact_transforms import (
     transform_fact_fee,
     transform_fact_academic,
     transform_fact_grade,
-    transform_fact_attendance
+    transform_fact_attendance,
+    transform_fact_teaching,
+    transform_fact_room_usage
 )
 
 # Import MinIO utilities
@@ -414,6 +416,56 @@ def transform_facts(minio_client, raw_timestamp: str, process_timestamp: str) ->
     except Exception as e:
         logger.error(f"Error transforming attendance fact: {str(e)}")
         results['fact_attendance'] = False
+    
+    # Transform teaching fact
+    try:
+        logger.info("Transforming fact: teaching")
+        class_schedules_df = read_dataframe_from_minio(
+            minio_client, 
+            "raw", 
+            f"{raw_timestamp}/postgres/class_schedules.parquet"
+        )
+        
+        if class_schedules_df is not None and not class_schedules_df.empty:
+            df_transformed = transform_fact_teaching(class_schedules_df)
+            success = upload_dataframe_to_minio(
+                minio_client,
+                df_transformed,
+                "processed",
+                f"{process_timestamp}/facts/fact_teaching.parquet"
+            )
+            results['fact_teaching'] = success
+        else:
+            logger.warning(f"No class_schedules data found for timestamp {raw_timestamp}")
+            results['fact_teaching'] = False
+    except Exception as e:
+        logger.error(f"Error transforming teaching fact: {str(e)}")
+        results['fact_teaching'] = False
+    
+    # Transform room usage fact
+    try:
+        logger.info("Transforming fact: room_usage")
+        class_schedules_df = read_dataframe_from_minio(
+            minio_client, 
+            "raw", 
+            f"{raw_timestamp}/postgres/class_schedules.parquet"
+        )
+        
+        if class_schedules_df is not None and not class_schedules_df.empty:
+            df_transformed = transform_fact_room_usage(class_schedules_df)
+            success = upload_dataframe_to_minio(
+                minio_client,
+                df_transformed,
+                "processed",
+                f"{process_timestamp}/facts/fact_room_usage.parquet"
+            )
+            results['fact_room_usage'] = success
+        else:
+            logger.warning(f"No class_schedules data found for timestamp {raw_timestamp}")
+            results['fact_room_usage'] = False
+    except Exception as e:
+        logger.error(f"Error transforming room_usage fact: {str(e)}")
+        results['fact_room_usage'] = False
     
     return results
 
