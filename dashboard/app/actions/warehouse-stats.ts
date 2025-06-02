@@ -189,8 +189,8 @@ export async function getFinancialStats() {
 // Super simple academic stats - just count and minimal processing
 export async function getAcademicStats() {
   try {
-    // Just get a basic count and the program stats which we know works
-    const [totalQuery, programPerformance] = await Promise.all([
+    // Get academic stats with proper average GPA calculation
+    const [totalQuery, programPerformance, averageGpaResult] = await Promise.all([
       query(`SELECT COUNT(*) as count FROM fact_academic`),
       
       query(`
@@ -203,6 +203,15 @@ export async function getAcademicStats() {
         GROUP BY ds.program_name
         ORDER BY avg_gpa DESC
         LIMIT 10
+      `),
+      
+      // Calculate overall average GPA using the same method as in academic-details.ts
+      query(`
+        SELECT 
+          AVG(fa.cumulative_gpa) as average_gpa
+        FROM fact_academic fa
+        JOIN dim_student ds ON fa.student_id = ds.student_id
+        WHERE fa.cumulative_gpa IS NOT NULL
       `)
     ]);
 
@@ -225,9 +234,9 @@ export async function getAcademicStats() {
       ORDER BY ROUND(cumulative_gpa) DESC
     `);
     
-    // Just get the count and a dummy average
+    // Get the count and properly calculated average GPA
     const totalRecords = safeParseInt(totalQuery.rows[0]?.count);
-    const averageGpa = 3.2; // Hardcoded since we're having SQL issues
+    const averageGpa = parseFloat(averageGpaResult.rows[0]?.average_gpa) || 0;
 
     return {
       totalRecords: totalRecords,

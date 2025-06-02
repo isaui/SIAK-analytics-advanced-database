@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRegistrationDetails, getSemesters } from '@/app/actions/registration-details';
+import { getTeachingDetails, getSemesters } from '@/app/actions/teaching-details';
 
 export async function GET(request: Request) {
   try {
@@ -11,38 +11,41 @@ export async function GET(request: Request) {
     const viewType = searchParams.get('viewType') || 'paginated';
     const semesterId = searchParams.get('semesterId') || undefined;
     const facultyName = searchParams.get('facultyName') || undefined;
-    const programName = searchParams.get('programName') || undefined;
+    const lecturerId = searchParams.get('lecturerId') || undefined;
+    const courseId = searchParams.get('courseId') || undefined;
     const searchTerm = searchParams.get('searchTerm') || undefined;
-    const minCredits = searchParams.get('minCredits') || undefined;
-    const maxCredits = searchParams.get('maxCredits') || undefined;
+    const minHours = searchParams.get('minHours') || undefined;
+    const maxHours = searchParams.get('maxHours') || undefined;
+    const minCompletionRate = searchParams.get('minCompletionRate') || undefined;
     
     // For 'all' view, don't pass page and pageSize to get all data
-    // BUT KEEP ALL FILTERS AVAILABLE
     const filters = {
       semesterId,
       facultyName,
-      programName,
+      lecturerId,
+      courseId,
       searchTerm,
-      minCredits,
-      maxCredits,
+      minHours,
+      maxHours,
+      minCompletionRate,
       ...(viewType === 'paginated' && { page, pageSize })
     };
     
     // Fetch data in parallel for better performance
-    const [registrations, semesters] = await Promise.all([
-      getRegistrationDetails(filters),
+    const [teaching, semesters] = await Promise.all([
+      getTeachingDetails(filters),
       getSemesters()
     ]);
     
     return NextResponse.json({
-      registrations,
+      teaching,
       semesters
     });
   } catch (error: any) {
-    console.error('Error fetching registration data:', error);
+    console.error('Error fetching teaching data:', error);
     return NextResponse.json(
       {
-        error: 'Failed to fetch registration data',
+        error: 'Failed to fetch teaching data',
         message: error.message
       },
       { status: 500 }

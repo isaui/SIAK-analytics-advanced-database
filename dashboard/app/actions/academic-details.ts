@@ -1,32 +1,33 @@
 import { query } from '@/utils/db';
 
-export type RegistrationDetail = {
-  registrationId: number;
+export type AcademicDetail = {
+  academicId: number;
   npm: string;
   studentName: string;
-  courseCode: string;
-  courseName: string;
-  credits: number;
   semesterCode: string;
   academicYear: string;
-  registrationDate: string;
+  semesterGpa: number;
+  cumulativeGpa: number;
+  semesterCredits: number;
+  creditsPassed: number;
+  totalCredits: number;
   programName: string;
   facultyName: string;
 };
 
-export type RegistrationFilters = {
+export type AcademicFilters = {
   semesterId?: string;
   facultyName?: string;
   programName?: string;
   searchTerm?: string;
-  minCredits?: string;
-  maxCredits?: string;
+  minGpa?: string;
+  maxGpa?: string;
   page?: number;
   pageSize?: number;
 };
 
-export type PaginatedRegistrationDetails = {
-  data: RegistrationDetail[];
+export type PaginatedAcademicDetails = {
+  data: AcademicDetail[];
   total: number;
   page: number;
   pageSize: number;
@@ -34,9 +35,9 @@ export type PaginatedRegistrationDetails = {
   faculties: string[];
   programs: string[];
   stats: {
-    totalRegistrations: number;
+    averageGpa: number;
     totalStudents: number;
-    totalCourses: number;
+    totalCredits: number;
     averageCredits: number;
   };
 };
@@ -72,9 +73,9 @@ export async function getSemesters(): Promise<SemesterOption[]> {
   }
 }
 
-export async function getRegistrationDetails(
-  filters: RegistrationFilters = {}
-): Promise<PaginatedRegistrationDetails> {
+export async function getAcademicDetails(
+  filters: AcademicFilters = {}
+): Promise<PaginatedAcademicDetails> {
   const page = filters.page || 1;
   const pageSize = filters.pageSize || 10;
   
@@ -84,55 +85,52 @@ export async function getRegistrationDetails(
   try {
     // Construct base query with all necessary joins
     let baseQuery = `
-      FROM fact_registration fr
-      JOIN dim_student ds ON fr.student_id = ds.student_id
-      JOIN dim_course dc ON fr.course_id = dc.course_id
-      JOIN dim_semester dsem ON fr.semester_id = dsem.semester_id
+      FROM fact_academic fa
+      JOIN dim_student ds ON fa.student_id = ds.student_id
+      JOIN dim_semester dsem ON fa.semester_id = dsem.semester_id
     `;
 
     // Add filters with proper type casting
     let whereConditions = [];
     let params = [];
 
-    // Filter by semester - Parse to integer with validation
+    // Filter by semester - FIXED: Parse to integer with validation
     if (filters.semesterId && !isNaN(parseInt(filters.semesterId))) {
       whereConditions.push(`dsem.semester_id = $${params.length + 1}`);
       params.push(parseInt(filters.semesterId));
     }
 
-    // Filter by faculty
+    // Filter by faculty - String is correct
     if (filters.facultyName) {
       whereConditions.push(`ds.faculty_name = $${params.length + 1}`);
       params.push(filters.facultyName);
     }
 
-    // Filter by program
+    // Filter by program - String is correct
     if (filters.programName) {
       whereConditions.push(`ds.program_name = $${params.length + 1}`);
       params.push(filters.programName);
     }
 
-    // Search term for student name, NPM, or course
+    // Search term for student name or NPM - String is correct
     if (filters.searchTerm) {
       whereConditions.push(`(
         ds.name ILIKE $${params.length + 1} OR
-        ds.npm ILIKE $${params.length + 1} OR
-        dc.course_code ILIKE $${params.length + 1} OR
-        dc.course_name ILIKE $${params.length + 1}
+        ds.npm ILIKE $${params.length + 1}
       )`);
       params.push(`%${filters.searchTerm}%`);
     }
 
-    // Filter by minimum credits - Parse to integer with validation
-    if (filters.minCredits && !isNaN(parseInt(filters.minCredits))) {
-      whereConditions.push(`dc.credits >= $${params.length + 1}`);
-      params.push(parseInt(filters.minCredits));
+    // Filter by minimum GPA - FIXED: Parse to float with validation
+    if (filters.minGpa && !isNaN(parseFloat(filters.minGpa))) {
+      whereConditions.push(`fa.cumulative_gpa >= $${params.length + 1}`);
+      params.push(parseFloat(filters.minGpa));
     }
 
-    // Filter by maximum credits - Parse to integer with validation
-    if (filters.maxCredits && !isNaN(parseInt(filters.maxCredits))) {
-      whereConditions.push(`dc.credits <= $${params.length + 1}`);
-      params.push(parseInt(filters.maxCredits));
+    // Filter by maximum GPA - FIXED: Parse to float with validation
+    if (filters.maxGpa && !isNaN(parseFloat(filters.maxGpa))) {
+      whereConditions.push(`fa.cumulative_gpa <= $${params.length + 1}`);
+      params.push(parseFloat(filters.maxGpa));
     }
 
     // Combine where conditions if any
@@ -154,20 +152,21 @@ export async function getRegistrationDetails(
     // Query for data (with or without pagination)
     let dataQuery = `
       SELECT 
-        fr.registration_id,
+        fa.academic_id,
         ds.npm,
         ds.name as student_name,
-        dc.course_code,
-        dc.course_name,
-        dc.credits,
         dsem.semester_code,
         dsem.academic_year,
-        TO_CHAR(fr.registration_date, 'YYYY-MM-DD') as registration_date,
+        fa.semester_gpa,
+        fa.cumulative_gpa,
+        fa.semester_credits,
+        fa.credits_passed,
+        fa.total_credits,
         ds.program_name,
         ds.faculty_name
       ${baseQuery}
       ${whereClause}
-      ORDER BY fr.registration_date DESC NULLS LAST, ds.name ASC
+      ORDER BY fa.cumulative_gpa DESC NULLS LAST, ds.name ASC
     `;
 
     // Add pagination only if not full data request
@@ -183,20 +182,19 @@ export async function getRegistrationDetails(
     // Query for statistics
     const statsQuery = `
       SELECT 
-        COUNT(*) as total_registrations,
-        COUNT(DISTINCT fr.student_id) as total_students,
-        COUNT(DISTINCT fr.course_id) as total_courses,
-        AVG(dc.credits) as average_credits
+        AVG(fa.cumulative_gpa) as average_gpa,
+        COUNT(DISTINCT fa.student_id) as total_students,
+        SUM(fa.total_credits) as total_credits,
+        AVG(fa.total_credits) as average_credits
       ${baseQuery}
       ${whereClause}
     `;
     
     const statsResult = await query(statsQuery, params);
-    
     const stats = {
-      totalRegistrations: parseInt(statsResult.rows[0].total_registrations) || 0,
+      averageGpa: parseFloat(statsResult.rows[0].average_gpa) || 0,
       totalStudents: parseInt(statsResult.rows[0].total_students) || 0,
-      totalCourses: parseInt(statsResult.rows[0].total_courses) || 0,
+      totalCredits: parseInt(statsResult.rows[0].total_credits) || 0,
       averageCredits: parseFloat(statsResult.rows[0].average_credits) || 0
     };
 
@@ -231,15 +229,16 @@ export async function getRegistrationDetails(
     
     // Transform to needed format with better error handling
     const data = result.rows.map((row) => ({
-      registrationId: row.registration_id || 0,
+      academicId: row.academic_id || 0,
       npm: row.npm || '',
       studentName: row.student_name || '',
-      courseCode: row.course_code || '',
-      courseName: row.course_name || '',
-      credits: parseInt(row.credits) || 0,
       semesterCode: row.semester_code || '',
       academicYear: row.academic_year || '',
-      registrationDate: row.registration_date || '',
+      semesterGpa: parseFloat(row.semester_gpa) || 0,
+      cumulativeGpa: parseFloat(row.cumulative_gpa) || 0,
+      semesterCredits: parseInt(row.semester_credits) || 0,
+      creditsPassed: parseInt(row.credits_passed) || 0,
+      totalCredits: parseInt(row.total_credits) || 0,
       programName: row.program_name || '',
       facultyName: row.faculty_name || ''
     }));
@@ -255,7 +254,7 @@ export async function getRegistrationDetails(
       stats
     };
   } catch (error) {
-    console.error('Error fetching registration details:', error);
+    console.error('Error fetching academic details:', error);
     return {
       data: [],
       total: 0,
@@ -265,9 +264,9 @@ export async function getRegistrationDetails(
       faculties: [],
       programs: [],
       stats: {
-        totalRegistrations: 0,
+        averageGpa: 0,
         totalStudents: 0,
-        totalCourses: 0,
+        totalCredits: 0,
         averageCredits: 0
       }
     };

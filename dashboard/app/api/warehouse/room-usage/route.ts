@@ -1,5 +1,5 @@
+import { getRoomUsageDetails, getSemesters } from '@/app/actions/room-usage-detail';
 import { NextResponse } from 'next/server';
-import { getRegistrationDetails, getSemesters } from '@/app/actions/registration-details';
 
 export async function GET(request: Request) {
   try {
@@ -10,39 +10,44 @@ export async function GET(request: Request) {
     const pageSize = searchParams.get('pageSize') ? parseInt(searchParams.get('pageSize') as string) : 10;
     const viewType = searchParams.get('viewType') || 'paginated';
     const semesterId = searchParams.get('semesterId') || undefined;
-    const facultyName = searchParams.get('facultyName') || undefined;
-    const programName = searchParams.get('programName') || undefined;
+    const building = searchParams.get('building') || undefined;
+    const roomId = searchParams.get('roomId') || undefined;
     const searchTerm = searchParams.get('searchTerm') || undefined;
-    const minCredits = searchParams.get('minCredits') || undefined;
-    const maxCredits = searchParams.get('maxCredits') || undefined;
+    const dateFrom = searchParams.get('dateFrom') || undefined;
+    const dateTo = searchParams.get('dateTo') || undefined;
+    const minUtilization = searchParams.get('minUtilization') || undefined;
+    const maxUtilization = searchParams.get('maxUtilization') || undefined;
+    const minOccupancy = searchParams.get('minOccupancy') || undefined;
     
     // For 'all' view, don't pass page and pageSize to get all data
-    // BUT KEEP ALL FILTERS AVAILABLE
     const filters = {
       semesterId,
-      facultyName,
-      programName,
+      building,
+      roomId,
       searchTerm,
-      minCredits,
-      maxCredits,
+      dateFrom,
+      dateTo,
+      minUtilization,
+      maxUtilization,
+      minOccupancy,
       ...(viewType === 'paginated' && { page, pageSize })
     };
     
     // Fetch data in parallel for better performance
-    const [registrations, semesters] = await Promise.all([
-      getRegistrationDetails(filters),
+    const [roomUsage, semesters] = await Promise.all([
+      getRoomUsageDetails(filters),
       getSemesters()
     ]);
     
     return NextResponse.json({
-      registrations,
+      roomUsage,
       semesters
     });
   } catch (error: any) {
-    console.error('Error fetching registration data:', error);
+    console.error('Error fetching room usage data:', error);
     return NextResponse.json(
       {
-        error: 'Failed to fetch registration data',
+        error: 'Failed to fetch room usage data',
         message: error.message
       },
       { status: 500 }

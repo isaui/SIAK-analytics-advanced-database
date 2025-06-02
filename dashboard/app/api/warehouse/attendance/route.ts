@@ -1,5 +1,5 @@
+import { getAttendanceDetails, getSemesters } from '@/app/actions/attendance-detail';
 import { NextResponse } from 'next/server';
-import { getRegistrationDetails, getSemesters } from '@/app/actions/registration-details';
 
 export async function GET(request: Request) {
   try {
@@ -12,37 +12,38 @@ export async function GET(request: Request) {
     const semesterId = searchParams.get('semesterId') || undefined;
     const facultyName = searchParams.get('facultyName') || undefined;
     const programName = searchParams.get('programName') || undefined;
+    const courseId = searchParams.get('courseId') || undefined;
     const searchTerm = searchParams.get('searchTerm') || undefined;
-    const minCredits = searchParams.get('minCredits') || undefined;
-    const maxCredits = searchParams.get('maxCredits') || undefined;
+    const dateFrom = searchParams.get('dateFrom') || undefined;
+    const dateTo = searchParams.get('dateTo') || undefined;
     
     // For 'all' view, don't pass page and pageSize to get all data
-    // BUT KEEP ALL FILTERS AVAILABLE
     const filters = {
       semesterId,
       facultyName,
       programName,
+      courseId,
       searchTerm,
-      minCredits,
-      maxCredits,
+      dateFrom,
+      dateTo,
       ...(viewType === 'paginated' && { page, pageSize })
     };
     
     // Fetch data in parallel for better performance
-    const [registrations, semesters] = await Promise.all([
-      getRegistrationDetails(filters),
+    const [attendance, semesters] = await Promise.all([
+      getAttendanceDetails(filters),
       getSemesters()
     ]);
     
     return NextResponse.json({
-      registrations,
+      attendance,
       semesters
     });
   } catch (error: any) {
-    console.error('Error fetching registration data:', error);
+    console.error('Error fetching attendance data:', error);
     return NextResponse.json(
       {
-        error: 'Failed to fetch registration data',
+        error: 'Failed to fetch attendance data',
         message: error.message
       },
       { status: 500 }

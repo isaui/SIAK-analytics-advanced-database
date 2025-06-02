@@ -24,8 +24,8 @@ interface StatCardProps {
 
 function StatCard({ title, icon, stats, href, color }: StatCardProps) {
   return (
-    <Link href={href} className="block group">
-      <div className={`bg-gray-800 rounded-xl shadow-lg border-l-4 ${color} p-6 hover:shadow-xl hover:bg-gray-750 transition-all duration-200 group-hover:scale-105`}>
+    <Link href={href} className="block group h-full">
+      <div className={`bg-gray-800 rounded-xl shadow-lg border-l-4 ${color} p-6 hover:shadow-xl hover:bg-gray-750 transition-all duration-200 group-hover:scale-105 h-full flex flex-col`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <div className={`p-3 rounded-lg ${color.replace('border-l-', 'bg-').replace('-500', '-900/20')} border ${color.replace('border-l-', 'border-').replace('-500', '-500/30')}`}>
@@ -36,13 +36,15 @@ function StatCard({ title, icon, stats, href, color }: StatCardProps) {
           <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-300 transition-colors" />
         </div>
         
-        <div className="space-y-3">
+        <div className="space-y-3 flex-grow">
           {stats.map((stat, index) => (
             <div key={index} className="flex justify-between items-center">
               <span className="text-sm text-gray-400">{stat.label}</span>
               <span className="text-lg font-bold text-white">{stat.value}</span>
             </div>
           ))}
+          {/* Add spacer if there are fewer stats to maintain consistent height */}
+          {stats.length < 3 && <div className="flex-grow"></div>}
         </div>
       </div>
     </Link>
@@ -147,16 +149,17 @@ export default function StatCards({ stats }: StatCardsProps) {
         <BarChart4 className="w-6 h-6 text-gray-400 mr-3" />
         <h2 className="text-2xl font-semibold text-white">Key Metrics</h2>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {dashboardCards.map((card, index) => (
-          <StatCard
-            key={index}
-            title={card.title}
-            icon={card.icon}
-            stats={card.stats}
-            href={card.href}
-            color={card.color}
-          />
+          <div key={index} className="h-full">
+            <StatCard
+              title={card.title}
+              icon={card.icon}
+              stats={card.stats}
+              href={card.href}
+              color={card.color}
+            />
+          </div>
         ))}
       </div>
     </div>

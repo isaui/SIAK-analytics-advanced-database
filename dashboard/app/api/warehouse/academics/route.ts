@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRegistrationDetails, getSemesters } from '@/app/actions/registration-details';
+import { getAcademicDetails, getSemesters } from '@/app/actions/academic-details';
 
 export async function GET(request: Request) {
   try {
@@ -13,36 +13,36 @@ export async function GET(request: Request) {
     const facultyName = searchParams.get('facultyName') || undefined;
     const programName = searchParams.get('programName') || undefined;
     const searchTerm = searchParams.get('searchTerm') || undefined;
-    const minCredits = searchParams.get('minCredits') || undefined;
-    const maxCredits = searchParams.get('maxCredits') || undefined;
+    const minGpa = searchParams.get('minGpa') || undefined;
+    const maxGpa = searchParams.get('maxGpa') || undefined;
     
     // For 'all' view, don't pass page and pageSize to get all data
-    // BUT KEEP ALL FILTERS AVAILABLE
+    // BUT KEEP ALL FILTERS AVAILABLE (this is the improvement!)
     const filters = {
       semesterId,
       facultyName,
       programName,
       searchTerm,
-      minCredits,
-      maxCredits,
+      minGpa,
+      maxGpa,
       ...(viewType === 'paginated' && { page, pageSize })
     };
     
     // Fetch data in parallel for better performance
-    const [registrations, semesters] = await Promise.all([
-      getRegistrationDetails(filters),
+    const [academics, semesters] = await Promise.all([
+      getAcademicDetails(filters),
       getSemesters()
     ]);
     
     return NextResponse.json({
-      registrations,
+      academics,
       semesters
     });
   } catch (error: any) {
-    console.error('Error fetching registration data:', error);
+    console.error('Error fetching academic data:', error);
     return NextResponse.json(
       {
-        error: 'Failed to fetch registration data',
+        error: 'Failed to fetch academic data',
         message: error.message
       },
       { status: 500 }

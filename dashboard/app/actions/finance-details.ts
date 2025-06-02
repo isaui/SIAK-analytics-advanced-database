@@ -1,32 +1,30 @@
 import { query } from '@/utils/db';
 
-export type RegistrationDetail = {
-  registrationId: number;
+export type FinanceDetail = {
+  feeId: number;
   npm: string;
   studentName: string;
-  courseCode: string;
-  courseName: string;
-  credits: number;
   semesterCode: string;
   academicYear: string;
-  registrationDate: string;
+  feeAmount: number;
+  paymentDate: string;
   programName: string;
   facultyName: string;
 };
 
-export type RegistrationFilters = {
+export type FinanceFilters = {
   semesterId?: string;
   facultyName?: string;
   programName?: string;
   searchTerm?: string;
-  minCredits?: string;
-  maxCredits?: string;
+  minAmount?: string;
+  maxAmount?: string;
   page?: number;
   pageSize?: number;
 };
 
-export type PaginatedRegistrationDetails = {
-  data: RegistrationDetail[];
+export type PaginatedFinanceDetails = {
+  data: FinanceDetail[];
   total: number;
   page: number;
   pageSize: number;
@@ -34,10 +32,10 @@ export type PaginatedRegistrationDetails = {
   faculties: string[];
   programs: string[];
   stats: {
-    totalRegistrations: number;
-    totalStudents: number;
-    totalCourses: number;
-    averageCredits: number;
+    totalAmount: number;
+    averageAmount: number;
+    totalPayments: number;
+    averagePaymentsPerStudent: number;
   };
 };
 
@@ -72,9 +70,9 @@ export async function getSemesters(): Promise<SemesterOption[]> {
   }
 }
 
-export async function getRegistrationDetails(
-  filters: RegistrationFilters = {}
-): Promise<PaginatedRegistrationDetails> {
+export async function getFinanceDetails(
+  filters: FinanceFilters = {}
+): Promise<PaginatedFinanceDetails> {
   const page = filters.page || 1;
   const pageSize = filters.pageSize || 10;
   
@@ -84,10 +82,9 @@ export async function getRegistrationDetails(
   try {
     // Construct base query with all necessary joins
     let baseQuery = `
-      FROM fact_registration fr
-      JOIN dim_student ds ON fr.student_id = ds.student_id
-      JOIN dim_course dc ON fr.course_id = dc.course_id
-      JOIN dim_semester dsem ON fr.semester_id = dsem.semester_id
+      FROM fact_fee ff
+      JOIN dim_student ds ON ff.student_id = ds.student_id
+      JOIN dim_semester dsem ON ff.semester_id = dsem.semester_id
     `;
 
     // Add filters with proper type casting
@@ -112,27 +109,25 @@ export async function getRegistrationDetails(
       params.push(filters.programName);
     }
 
-    // Search term for student name, NPM, or course
+    // Search term for student name or NPM
     if (filters.searchTerm) {
       whereConditions.push(`(
         ds.name ILIKE $${params.length + 1} OR
-        ds.npm ILIKE $${params.length + 1} OR
-        dc.course_code ILIKE $${params.length + 1} OR
-        dc.course_name ILIKE $${params.length + 1}
+        ds.npm ILIKE $${params.length + 1}
       )`);
       params.push(`%${filters.searchTerm}%`);
     }
 
-    // Filter by minimum credits - Parse to integer with validation
-    if (filters.minCredits && !isNaN(parseInt(filters.minCredits))) {
-      whereConditions.push(`dc.credits >= $${params.length + 1}`);
-      params.push(parseInt(filters.minCredits));
+    // Filter by minimum amount - Parse to float with validation
+    if (filters.minAmount && !isNaN(parseFloat(filters.minAmount))) {
+      whereConditions.push(`ff.fee_amount >= $${params.length + 1}`);
+      params.push(parseFloat(filters.minAmount));
     }
 
-    // Filter by maximum credits - Parse to integer with validation
-    if (filters.maxCredits && !isNaN(parseInt(filters.maxCredits))) {
-      whereConditions.push(`dc.credits <= $${params.length + 1}`);
-      params.push(parseInt(filters.maxCredits));
+    // Filter by maximum amount - Parse to float with validation
+    if (filters.maxAmount && !isNaN(parseFloat(filters.maxAmount))) {
+      whereConditions.push(`ff.fee_amount <= $${params.length + 1}`);
+      params.push(parseFloat(filters.maxAmount));
     }
 
     // Combine where conditions if any
@@ -154,20 +149,18 @@ export async function getRegistrationDetails(
     // Query for data (with or without pagination)
     let dataQuery = `
       SELECT 
-        fr.registration_id,
-        ds.npm,
-        ds.name as student_name,
-        dc.course_code,
-        dc.course_name,
-        dc.credits,
+        ff.fee_id, 
+        ds.npm, 
+        ds.name as student_name, 
         dsem.semester_code,
         dsem.academic_year,
-        TO_CHAR(fr.registration_date, 'YYYY-MM-DD') as registration_date,
+        ff.fee_amount,
+        TO_CHAR(ff.payment_date, 'YYYY-MM-DD') as payment_date,
         ds.program_name,
         ds.faculty_name
       ${baseQuery}
       ${whereClause}
-      ORDER BY fr.registration_date DESC NULLS LAST, ds.name ASC
+      ORDER BY ff.payment_date DESC NULLS LAST, ds.name ASC
     `;
 
     // Add pagination only if not full data request
@@ -183,21 +176,23 @@ export async function getRegistrationDetails(
     // Query for statistics
     const statsQuery = `
       SELECT 
-        COUNT(*) as total_registrations,
-        COUNT(DISTINCT fr.student_id) as total_students,
-        COUNT(DISTINCT fr.course_id) as total_courses,
-        AVG(dc.credits) as average_credits
+        SUM(ff.fee_amount) as total_amount,
+        AVG(ff.fee_amount) as average_amount,
+        COUNT(*) as total_payments,
+        COUNT(DISTINCT ff.student_id) as unique_students
       ${baseQuery}
       ${whereClause}
     `;
     
     const statsResult = await query(statsQuery, params);
+    const uniqueStudents = parseInt(statsResult.rows[0].unique_students) || 1;
+    const totalPayments = parseInt(statsResult.rows[0].total_payments) || 0;
     
     const stats = {
-      totalRegistrations: parseInt(statsResult.rows[0].total_registrations) || 0,
-      totalStudents: parseInt(statsResult.rows[0].total_students) || 0,
-      totalCourses: parseInt(statsResult.rows[0].total_courses) || 0,
-      averageCredits: parseFloat(statsResult.rows[0].average_credits) || 0
+      totalAmount: parseFloat(statsResult.rows[0].total_amount) || 0,
+      averageAmount: parseFloat(statsResult.rows[0].average_amount) || 0,
+      totalPayments: totalPayments,
+      averagePaymentsPerStudent: uniqueStudents > 0 ? Math.round(totalPayments / uniqueStudents * 100) / 100 : 0
     };
 
     // Query for unique faculties for filter dropdown
@@ -231,15 +226,13 @@ export async function getRegistrationDetails(
     
     // Transform to needed format with better error handling
     const data = result.rows.map((row) => ({
-      registrationId: row.registration_id || 0,
+      feeId: row.fee_id || 0,
       npm: row.npm || '',
       studentName: row.student_name || '',
-      courseCode: row.course_code || '',
-      courseName: row.course_name || '',
-      credits: parseInt(row.credits) || 0,
       semesterCode: row.semester_code || '',
       academicYear: row.academic_year || '',
-      registrationDate: row.registration_date || '',
+      feeAmount: parseFloat(row.fee_amount) || 0,
+      paymentDate: row.payment_date || '',
       programName: row.program_name || '',
       facultyName: row.faculty_name || ''
     }));
@@ -255,7 +248,7 @@ export async function getRegistrationDetails(
       stats
     };
   } catch (error) {
-    console.error('Error fetching registration details:', error);
+    console.error('Error fetching finance details:', error);
     return {
       data: [],
       total: 0,
@@ -265,10 +258,10 @@ export async function getRegistrationDetails(
       faculties: [],
       programs: [],
       stats: {
-        totalRegistrations: 0,
-        totalStudents: 0,
-        totalCourses: 0,
-        averageCredits: 0
+        totalAmount: 0,
+        averageAmount: 0,
+        totalPayments: 0,
+        averagePaymentsPerStudent: 0
       }
     };
   }

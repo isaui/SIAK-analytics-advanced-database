@@ -408,21 +408,21 @@ def simulate_changes(num_changes=10):
     # Defines both update and insert operations with their relative weights
     operations = [
         # Update operations
-        (update_random_student, 20),         # Update students
-        (update_random_grade, 25),           # Update grades (most frequent update)
-        (update_random_course, 10),          # Update courses 
-        (update_random_lecturer, 5),         # Update lecturers (less frequent)
-        (update_random_academic_record, 10), # Update academic records
+        (update_random_student, 2),         # Update students
+        (update_random_grade, 3),           # Update grades (most frequent update)
+        (update_random_course, 4),          # Update courses 
+        (update_random_lecturer, 6),         # Update lecturers (less frequent)
+        (update_random_academic_record, 7), # Update academic records
         
         # Insert operations
-        (insert_random_student, 8),          # Insert new students
-        (insert_random_registration, 8),     # Insert new registrations
-        (insert_random_grade, 10),           # Insert new grades
-        (insert_random_lecturer, 3),         # Insert new lecturers
-        (insert_random_room, 2),             # Insert new rooms
+        (insert_random_student, 15),          # Insert new students
+        (insert_random_registration, 20),     # Insert new registrations
+        (insert_random_grade, 20),           # Insert new grades
+        (insert_random_lecturer, 20),         # Insert new lecturers
+        (insert_random_room, 20),             # Insert new rooms
         (insert_random_semester, 1),         # Insert new semesters (rare)
-        (insert_random_class_schedule, 4),   # Insert new class schedules
-        (insert_random_academic_record, 6)   # Insert new academic records
+        (insert_random_class_schedule, 20),   # Insert new class schedules
+        (insert_random_academic_record, 20)   # Insert new academic records
     ]
     
     # Create weighted list for random selection
@@ -453,7 +453,7 @@ def simulate_changes(num_changes=10):
     logger.info(f"Completed {changes_made} changes in {attempts} attempts")
     return changes_made
 
-def main(changes=20, commit=True):
+def main(changes=120, commit=True):
     """Main function
     
     Args:
