@@ -47,7 +47,7 @@ def run_postgres_changes():
     from scripts.simulates_changes_postgres import main as postgres_changes
     
     # Jalankan main function dengan parameter langsung
-    postgres_changes(changes=100, commit=True)
+    postgres_changes(changes=500, commit=True)
 
 # Task 1: Simulate changes in PostgreSQL
 simulate_postgres_changes = PythonOperator(
