@@ -1,15 +1,19 @@
-FROM koyeb/docker-compose
+FROM docker:dind
 
-# Set working directory
 WORKDIR /app
 
 # Copy the application code and configuration
 COPY . /app
 
+# Copy environment file
 COPY .env.example /app/.env
 
 # Make sure scripts are executable
 RUN chmod +x /app/scripts/*.py || true
 
-# Set entrypoint to run docker-compose with build flag
-ENTRYPOINT ["docker-compose", "up", "--build"]
+# Copy and set entrypoint script
+COPY koyeb-entrypoint.sh /koyeb-entrypoint.sh
+RUN chmod +x /koyeb-entrypoint.sh
+
+ENTRYPOINT ["/koyeb-entrypoint.sh"]
+CMD ["docker", "compose", "up", "--build"]
