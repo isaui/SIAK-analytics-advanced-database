@@ -2,6 +2,9 @@ FROM docker:dind
 
 WORKDIR /app
 
+# Install necessary utilities
+RUN apk add --no-cache python3 py3-pip curl net-tools
+
 # Copy the application code and configuration
 COPY . /app
 
@@ -14,6 +17,9 @@ RUN chmod +x /app/scripts/*.py || true
 # Copy and set entrypoint script
 COPY koyeb-entrypoint.sh /koyeb-entrypoint.sh
 RUN chmod +x /koyeb-entrypoint.sh
+
+# Expose required ports - this is crucial for Koyeb health checks
+EXPOSE 3000 8080 9000 9001 5432
 
 ENTRYPOINT ["/koyeb-entrypoint.sh"]
 CMD ["docker", "compose", "up", "--build"]

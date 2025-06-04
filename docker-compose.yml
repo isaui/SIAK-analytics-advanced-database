@@ -21,7 +21,7 @@ services:
       "-c", "max_wal_senders=10"
     ]
     ports:
-      - "${DB_PORT}:${DB_PORT}"
+      - "0.0.0.0:${DB_PORT}:${DB_PORT}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./data_sources/init_siak:/docker-entrypoint-initdb.d
@@ -37,7 +37,7 @@ services:
       POSTGRES_PASSWORD: ${WAREHOUSE_DB_PASSWORD}
       POSTGRES_DB: ${WAREHOUSE_DB_NAME}
     ports:
-      - "${WAREHOUSE_DB_PORT}:5432"
+      - "0.0.0.0:${WAREHOUSE_DB_PORT}:5432"
     volumes:
       - warehouse_data:/var/lib/postgresql/data
       - ./data_sources/init_warehouse:/docker-entrypoint-initdb.d
@@ -56,8 +56,8 @@ services:
       MINIO_SECURE: ${MINIO_SECURE}
     command: server /data --console-address ":9001"
     ports:
-      - "${MINIO_PORT}:9000"
-      - "9001:9001"
+      - "0.0.0.0:${MINIO_PORT}:9000"
+      - "0.0.0.0:9001:9001"
     volumes:
       - minio_data:/data
     networks:
@@ -128,7 +128,7 @@ services:
       - ./generator:/opt/airflow/generator
       - ./data_sources:/opt/airflow/data_sources
     ports:
-      - "${AIRFLOW_WEBSERVER_WEB_SERVER_PORT}:8080"  # Airflow UI
+      - "0.0.0.0:${AIRFLOW_WEBSERVER_WEB_SERVER_PORT}:8080"  # Airflow UI
     user: "root"
     command: >
       bash -c "airflow db init && 
@@ -160,7 +160,7 @@ services:
     env_file:
       - ./.env
     ports:
-      - "3000:3000"
+      - "0.0.0.0:3000:3000"
     depends_on:
       - postgres-warehouse
       - minio

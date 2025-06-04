@@ -41,6 +41,8 @@ RUN npm run build
 
 EXPOSE 3000
 ENV PORT=3000
+# Make sure Next.js binds to all interfaces (0.0.0.0), not just localhost
+ENV HOST=0.0.0.0
 
 # Use start for production build
-CMD ["npm", "run", "start"]
+CMD ["npm", "run", "start", "--", "--hostname", "0.0.0.0"]
