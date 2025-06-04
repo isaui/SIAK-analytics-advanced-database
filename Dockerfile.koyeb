@@ -6,10 +6,7 @@ WORKDIR /app
 # Copy the application code and configuration
 COPY . /app
 
-# Copy the environment file
-# If you have a .env file, it will be used; otherwise .env.copy will be used as a template
-COPY [".env", ".env.example", "/app/"]
-RUN if [ ! -f /app/.env ]; then cp /app/.env.example /app/.env; fi
+COPY .env.example /app/.env
 
 # Make sure scripts are executable
 RUN chmod +x /app/scripts/*.py || true
